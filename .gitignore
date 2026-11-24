@@ -2,7 +2,11 @@ node_modules/
 dist/
 dist-ts/
 dist-electron/
-release/
+apps/desktop-windows/release/win-unpacked/
+apps/desktop-windows/release/__uninstaller*
+apps/desktop-windows/release/*.blockmap
+apps/desktop-windows/release/*.yml
+apps/desktop-windows/release/*.yaml
 *.tsbuildinfo
 .DS_Store
 Thumbs.db
