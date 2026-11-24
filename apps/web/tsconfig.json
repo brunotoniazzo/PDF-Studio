@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "./src",
+    "outDir": "./dist"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/platform-contracts" },
+    { "path": "../../packages/pdf-engine" },
+    { "path": "../../packages/editor-core" },
+    { "path": "../../packages/ui" }
+  ]
+}

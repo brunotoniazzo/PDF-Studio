@@ -1,0 +1,37 @@
+{
+  "appId": "com.pdfstudio.desktop",
+  "productName": "PDF Studio",
+  "electronVersion": "33.4.11",
+  "electronDist": "../../node_modules/electron/dist",
+  "npmRebuild": false,
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*",
+    "package.json"
+  ],
+  "fileAssociations": [
+    {
+      "ext": "pdf",
+      "name": "PDF Document",
+      "description": "Documento PDF (PDF Studio)",
+      "role": "Editor"
+    }
+  ],
+  "win": {
+    "signAndEditExecutable": false,
+    "target": [
+      { "target": "nsis", "arch": ["x64"] },
+      { "target": "portable", "arch": ["x64"] }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "PDF Studio"
+  }
+}

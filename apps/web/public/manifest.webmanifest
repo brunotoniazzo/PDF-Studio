@@ -1,0 +1,9 @@
+{
+  "name": "PDF Studio",
+  "short_name": "PDF Studio",
+  "description": "PDF Studio — Editor e Leitor de PDF Local-First com PDFium WASM",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8FAFC",
+  "theme_color": "#1B2952"
+}
