@@ -94,6 +94,7 @@ async function createMainWindow() {
     frame: false, // Janela sem bordas com Custom Titlebar Windows 11
     backgroundColor: '#F8FAFC',
     title: 'PDF Studio',
+    icon: path.join(__dirname, '../dist/icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
