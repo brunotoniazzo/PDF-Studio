@@ -14,17 +14,15 @@
     "pack:win": "npm run build && electron-builder --win dir --config electron-builder.json",
     "dist:win": "npm run build && electron-builder --win nsis portable --config electron-builder.json"
   },
-  "dependencies": {
+  "devDependencies": {
     "@pdf-studio/editor-core": "*",
     "@pdf-studio/pdf-engine": "*",
     "@pdf-studio/platform-contracts": "*",
     "@pdf-studio/ui": "*",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
-  "devDependencies": {
     "electron": "^33.2.1",
     "electron-builder": "^25.1.8",
-    "esbuild": "^0.24.2"
+    "esbuild": "^0.24.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   }
 }

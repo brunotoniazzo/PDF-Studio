@@ -3,6 +3,7 @@
   "productName": "PDF Studio",
   "electronVersion": "33.4.11",
   "electronDist": "../../node_modules/electron/dist",
+  "electronLanguages": ["pt-BR", "en-US"],
   "compression": "maximum",
   "npmRebuild": false,
   "directories": {
@@ -11,7 +12,8 @@
   "files": [
     "dist/**/*",
     "dist-electron/**/*",
-    "package.json"
+    "package.json",
+    "!**/node_modules/**/*"
   ],
   "fileAssociations": [
     {
