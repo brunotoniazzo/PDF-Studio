@@ -85,9 +85,10 @@ Projetado sobre uma **Arquitetura Hexagonal em Monorepo**, o **PDF Studio** sepa
 ---
 
 ### 4. Modo Editar — Edição Direta de Texto, Imagens e Elementos Globais
-- **Edição Real de Texto Existente:**
+- **Edição Real e Expansível de Texto Existente:**
   - Reconstrói automaticamente fragmentos `FPDF_PAGEOBJ_TEXT` da página em linhas e parágrafos editáveis;
-  - Com clique duplo sobre qualquer bloco, abre o editor DOM alinhado na Camada 4;
+  - Com clique simples ou duplo sobre qualquer bloco, ativa a caixa interativa na Camada 4 com **8 alças de redimensionamento/expansão livre**, **barra de movimentação para qualquer posição da página** e atalho **Expandir largura** para ampliar o bloco além dos limites originais do PDF;
+  - Controle completo em tempo real no Inspetor Direito: família tipográfica, tamanho (`pt`), entrelinha, negrito/itálico, alinhamento (*esquerda*, *centro*, *direita*), cor, cobertura opcional de fundo e exclusão do bloco;
   - Remove prefixos de fontes em *subset*, aplica fallback métrico compatível (*Liberation Sans / Arial*, *Liberation Serif / Times*, *Liberation Mono / Courier*, *Carlito / Calibri* — carregando fontes TrueType CID nativas do Windows quando disponíveis) e regrava o *content stream* real via `FPDFPage_GenerateContent`.
 - **Adicionar novos blocos de texto:** Inserção livre de texto formatado em qualquer coordenada da página.
 - **Inserir Imagens:** Inclusão, movimentação e dimensionamento de imagens `PNG`, `JPEG` e `WebP`.

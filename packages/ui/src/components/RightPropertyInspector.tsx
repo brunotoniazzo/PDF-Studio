@@ -1,11 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  Bold,
   Check,
   Droplets,
   FileSignature,
   FileText,
   Hash,
+  Italic,
   Minimize2,
+  MoveHorizontal,
   ScanText,
   Shield,
   ShieldAlert,
@@ -16,6 +22,7 @@ import type {
   BatesConfig,
   CompressionConfig,
   HeaderFooterConfig,
+  MetricFontFamily,
   PdfAnnotation,
   PdfRect,
   ReviewStatus,
@@ -27,12 +34,15 @@ import {
   applyHeaderFooterToPdf,
   applyWatermarkToPdf,
   estimatePdfCompression,
+  getEffectivePageSizePt,
   optimizeAndCompressPdf,
+  ptToMm,
   runSearchableOcrOnPdf,
   sanitizePdfDocument,
   sharedPdfEngine,
 } from '@pdf-studio/pdf-engine';
 import {
+  type ActiveTextBlockDraft,
   AddAnnotationCommand,
   BinaryDocumentMutationCommand,
   DeleteAnnotationCommand,
@@ -42,6 +52,7 @@ import {
   usePdfStudioStore,
 } from '@pdf-studio/editor-core';
 import { usePlatformActions } from '../context/PlatformContext';
+import { commitTextBlockDraftToPdf } from '../utils/textBlockCommit';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -136,9 +147,11 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
     .flat()
     .find((a) => a.id === tab.selectedAnnotationId);
 
-  const activeTextBlock = Object.values(tab.editableBlocksByPage)
-    .flat()
-    .find((b) => b.id === tab.activeEditingBlockId);
+  const activeTextBlock =
+    tab.activeTextBlockDraft?.sourceBlock ??
+    Object.values(tab.editableBlocksByPage)
+      .flat()
+      .find((b) => b.id === tab.activeEditingBlockId);
 
   const updateSelectedAnnot = (patch: Partial<PdfAnnotation>, label?: string) => {
     if (!selectedAnnotation) return;
@@ -405,38 +418,320 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
         {/* 1. FLUXO AUTO: PROPRIEDADES DO BLOCO DE TEXTO OU ANOTAÇÃO SELECIONADA */}
         {rightInspectorFlow === 'auto' && (
           <>
-            {activeTextBlock ? (
-              <div className="space-y-3">
-                <div className="font-semibold text-[#1B2952] dark:text-blue-400">
-                  Edição de Bloco de Texto Nativo
-                </div>
-                <div className="rounded-lg border border-slate-500/20 p-2.5 space-y-1.5">
-                  <div className="flex justify-between">
-                    <span className="opacity-65">Fonte original:</span>
-                    <span className="font-mono">{activeTextBlock.cleanFontName}</span>
+            {activeTextBlock && tab.activeTextBlockDraft ? (
+              (() => {
+                const draft = tab.activeTextBlockDraft;
+                const patchDraft = (patch: Partial<ActiveTextBlockDraft>) => {
+                  updateTabState(tab.tabId, {
+                    activeTextBlockDraft: { ...draft, ...patch },
+                  });
+                };
+                const curGeo = tab.geometries[draft.pageIndex];
+                const effPage = curGeo
+                  ? getEffectivePageSizePt(curGeo)
+                  : { widthPt: 595.28, heightPt: 841.89 };
+                const boxWidthPt = Math.round(draft.rect.right - draft.rect.left);
+                const boxHeightPt = Math.round(draft.rect.top - draft.rect.bottom);
+
+                return (
+                  <div className="space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-[#1B2952] dark:text-blue-400">
+                        Bloco de Texto Expansível
+                      </span>
+                      <button
+                        onClick={() =>
+                          void commitTextBlockDraftToPdf({
+                            tab,
+                            block: activeTextBlock,
+                            draft,
+                            platform,
+                            deleteBlockOnly: true,
+                          })
+                        }
+                        className="inline-flex items-center gap-1 rounded px-2 py-1 text-red-600 hover:bg-red-500/10 dark:text-red-400"
+                        title="Excluir este bloco de texto do PDF"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                        Excluir
+                      </button>
+                    </div>
+
+                    {/* Geometria e Expansão Livre do Bloco */}
+                    <div className="rounded-lg border border-slate-500/20 p-2.5 space-y-2">
+                      <div className="flex items-center justify-between text-[11px] font-medium opacity-80">
+                        <span>Dimensões do Bloco</span>
+                        <span className="tabular-nums">
+                          {ptToMm(boxWidthPt)} × {ptToMm(boxHeightPt)} mm
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="mb-0.5 block text-[11px] opacity-70">
+                            Largura (pt)
+                          </label>
+                          <input
+                            type="number"
+                            min={28}
+                            max={1600}
+                            value={boxWidthPt}
+                            onChange={(e) => {
+                              const nextW = Math.max(28, Number(e.target.value) || 28);
+                              patchDraft({
+                                rect: {
+                                  ...draft.rect,
+                                  right: draft.rect.left + nextW,
+                                },
+                              });
+                            }}
+                            className={`h-7 w-full rounded border px-2 tabular-nums ${
+                              darkMode
+                                ? 'border-[#334155] bg-[#111827]'
+                                : 'border-slate-200 bg-slate-50'
+                            }`}
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-0.5 block text-[11px] opacity-70">
+                            Altura mín. (pt)
+                          </label>
+                          <input
+                            type="number"
+                            min={16}
+                            max={1600}
+                            value={boxHeightPt}
+                            onChange={(e) => {
+                              const nextH = Math.max(16, Number(e.target.value) || 16);
+                              patchDraft({
+                                rect: {
+                                  ...draft.rect,
+                                  bottom: draft.rect.top - nextH,
+                                },
+                              });
+                            }}
+                            className={`h-7 w-full rounded border px-2 tabular-nums ${
+                              darkMode
+                                ? 'border-[#334155] bg-[#111827]'
+                                : 'border-slate-200 bg-slate-50'
+                            }`}
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const margin = 36;
+                          const x0 = curGeo?.cropBox.left ?? 0;
+                          patchDraft({
+                            rect: {
+                              ...draft.rect,
+                              left: x0 + margin,
+                              right: x0 + effPage.widthPt - margin,
+                            },
+                          });
+                        }}
+                        className="inline-flex w-full items-center justify-center gap-1.5 rounded border border-[#2F4D8F]/40 bg-[#1B2952]/5 py-1.5 text-[11px] font-medium text-[#1B2952] hover:bg-[#1B2952]/10 dark:border-blue-400/40 dark:bg-blue-500/10 dark:text-blue-300"
+                      >
+                        <MoveHorizontal className="h-3.5 w-3.5" strokeWidth={1.5} />
+                        Expandir à Largura Útil da Página
+                      </button>
+                    </div>
+
+                    {/* Tipografia e Estilo */}
+                    <div>
+                      <label className="mb-1 block opacity-75">
+                        Família da Fonte (Original: {activeTextBlock.cleanFontName})
+                      </label>
+                      <select
+                        value={draft.fontFamily}
+                        onChange={(e) =>
+                          patchDraft({ fontFamily: e.target.value as MetricFontFamily })
+                        }
+                        className={`h-8 w-full rounded border px-2 ${
+                          darkMode
+                            ? 'border-[#334155] bg-[#111827]'
+                            : 'border-slate-200 bg-white'
+                        }`}
+                      >
+                        <option value="sans">Sans-Serif (Arial / Liberation Sans)</option>
+                        <option value="serif">Serifada (Times / Liberation Serif)</option>
+                        <option value="mono">Monoespaçada (Courier / Liberation Mono)</option>
+                        <option value="calibri">Humanista (Calibri / Carlito)</option>
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="mb-1 block opacity-75">Tamanho (pt)</label>
+                        <input
+                          type="number"
+                          min={6}
+                          max={96}
+                          step={0.5}
+                          value={draft.fontSizePt}
+                          onChange={(e) => {
+                            const fs = Math.max(6, Number(e.target.value) || 11);
+                            patchDraft({
+                              fontSizePt: fs,
+                              lineHeightPt: Math.round(fs * 1.25 * 10) / 10,
+                            });
+                          }}
+                          className={`h-8 w-full rounded border px-2 tabular-nums ${
+                            darkMode
+                              ? 'border-[#334155] bg-[#111827]'
+                              : 'border-slate-200 bg-slate-50'
+                          }`}
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block opacity-75">Entrelinha (pt)</label>
+                        <input
+                          type="number"
+                          min={6}
+                          max={120}
+                          step={0.5}
+                          value={draft.lineHeightPt}
+                          onChange={(e) =>
+                            patchDraft({
+                              lineHeightPt: Math.max(6, Number(e.target.value) || 14),
+                            })
+                          }
+                          className={`h-8 w-full rounded border px-2 tabular-nums ${
+                            darkMode
+                              ? 'border-[#334155] bg-[#111827]'
+                              : 'border-slate-200 bg-slate-50'
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Negrito, Itálico e Alinhamento */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => patchDraft({ isBold: !draft.isBold })}
+                          title="Negrito"
+                          className={`flex h-8 w-8 items-center justify-center rounded border ${
+                            draft.isBold
+                              ? 'border-[#1B2952] bg-[#1B2952] text-white'
+                              : 'border-slate-500/30 hover:bg-slate-500/10'
+                          }`}
+                        >
+                          <Bold className="h-3.5 w-3.5" strokeWidth={2} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => patchDraft({ isItalic: !draft.isItalic })}
+                          title="Itálico"
+                          className={`flex h-8 w-8 items-center justify-center rounded border ${
+                            draft.isItalic
+                              ? 'border-[#1B2952] bg-[#1B2952] text-white'
+                              : 'border-slate-500/30 hover:bg-slate-500/10'
+                          }`}
+                        >
+                          <Italic className="h-3.5 w-3.5" strokeWidth={1.8} />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        {(
+                          [
+                            ['left', AlignLeft, 'Alinhar à esquerda'],
+                            ['center', AlignCenter, 'Centralizar no bloco'],
+                            ['right', AlignRight, 'Alinhar à direita'],
+                          ] as const
+                        ).map(([al, IconComp, lbl]) => (
+                          <button
+                            key={al}
+                            type="button"
+                            onClick={() => patchDraft({ alignment: al })}
+                            title={lbl}
+                            className={`flex h-8 w-8 items-center justify-center rounded border ${
+                              draft.alignment === al
+                                ? 'border-[#1B2952] bg-[#1B2952] text-white'
+                                : 'border-slate-500/30 hover:bg-slate-500/10'
+                            }`}
+                          >
+                            <IconComp className="h-3.5 w-3.5" strokeWidth={1.5} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Cor do Texto */}
+                    <div>
+                      <label className="mb-1.5 block opacity-75">Cor do Texto</label>
+                      <div className="flex items-center gap-1.5">
+                        {['#0F172A', '#1B2952', '#2F4D8F', '#DC2626', '#047857', '#64748B'].map(
+                          (c) => (
+                            <button
+                              key={c}
+                              type="button"
+                              onClick={() => patchDraft({ colorHex: c })}
+                              style={{ backgroundColor: c }}
+                              className={`h-5 w-5 rounded-full border ${
+                                draft.colorHex.toLowerCase() === c.toLowerCase()
+                                  ? 'ring-2 ring-[#1B2952] dark:ring-white'
+                                  : 'border-black/20'
+                              }`}
+                            />
+                          )
+                        )}
+                        <input
+                          type="color"
+                          value={draft.colorHex}
+                          onChange={(e) => patchDraft({ colorHex: e.target.value })}
+                          className="ml-auto h-6 w-8 cursor-pointer rounded border-0 bg-transparent p-0"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Cobertura Opcional de Fundo (ao expandir sobre linhas/tabelas) */}
+                    <div className="flex items-center justify-between rounded border border-slate-500/20 p-2">
+                      <label className="flex cursor-pointer items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={draft.opaqueBackground}
+                          onChange={(e) =>
+                            patchDraft({ opaqueBackground: e.target.checked })
+                          }
+                          className="accent-[#1B2952]"
+                        />
+                        <span>Cobrir fundo sob o bloco</span>
+                      </label>
+                      {draft.opaqueBackground && (
+                        <input
+                          type="color"
+                          value={draft.backgroundColorHex}
+                          onChange={(e) =>
+                            patchDraft({ backgroundColorHex: e.target.value })
+                          }
+                          className="h-5 w-7 cursor-pointer rounded border-0 bg-transparent p-0"
+                        />
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void commitTextBlockDraftToPdf({
+                          tab,
+                          block: activeTextBlock,
+                          draft,
+                          platform,
+                        })
+                      }
+                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-[#1B2952] py-2 font-medium text-white shadow-sm hover:bg-[#2F4D8F]"
+                    >
+                      <Check className="h-4 w-4" strokeWidth={1.5} />
+                      Aplicar no PDF (Ctrl+Enter)
+                    </button>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="opacity-65">Fallback métrico:</span>
-                    <span className="rounded bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-300">
-                      {activeTextBlock.fallbackFontFamily === 'serif'
-                        ? 'Liberation Serif'
-                        : activeTextBlock.fallbackFontFamily === 'mono'
-                        ? 'Liberation Mono'
-                        : activeTextBlock.fallbackFontFamily === 'calibri'
-                        ? 'Carlito'
-                        : 'Liberation Sans'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between tabular-nums">
-                    <span className="opacity-65">Tamanho:</span>
-                    <span>{activeTextBlock.fontSizePt} pt</span>
-                  </div>
-                </div>
-                <p className="text-[11px] opacity-75">
-                  Edite o conteúdo diretamente na caixa sobre a página e clique em{' '}
-                  <strong>Aplicar</strong> (ou pressione Ctrl+Enter) para gravar no stream do PDFium.
-                </p>
-              </div>
+                );
+              })()
             ) : selectedAnnotation ? (
               <div className="space-y-3.5">
                 <div className="flex items-center justify-between">

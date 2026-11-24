@@ -1282,7 +1282,30 @@ function commitEditedTextBlockInWorker(
       }
     }
 
-    // 2. Carrega fonte TrueType CID se houver bytes .ttf, ou fonte padrão métrica
+    // 2. Se solicitado fundo opaco (para cobrir elementos sob o bloco expandido), insere retângulo
+    if (
+      payload.style.backgroundFillRgba &&
+      payload.style.boxWidthPt !== undefined &&
+      payload.style.boxBottomYPt !== undefined &&
+      payload.style.boxTopYPt !== undefined
+    ) {
+      const [br, bg, bb, ba] = payload.style.backgroundFillRgba;
+      const bgW = Math.max(4, payload.style.boxWidthPt + 6);
+      const bgH = Math.max(4, payload.style.boxTopYPt - payload.style.boxBottomYPt + 6);
+      const bgRectObj = mod.FPDFPageObj_CreateNewRect(
+        payload.style.xPt - 3,
+        payload.style.boxBottomYPt - 3,
+        bgW,
+        bgH
+      );
+      if (bgRectObj) {
+        mod.FPDFPageObj_SetFillColor(bgRectObj, br, bg, bb, ba);
+        mod.FPDFPath_SetDrawMode(bgRectObj, 1, false);
+        mod.FPDFPage_InsertObject(pagePtr, bgRectObj);
+      }
+    }
+
+    // 3. Carrega fonte TrueType CID se houver bytes .ttf, ou fonte padrão métrica
     let fontPtr = 0;
     if (payload.style.fontBytes && payload.style.fontBytes.byteLength > 0) {
       fontBufPtr = malloc(mod, payload.style.fontBytes.byteLength);
@@ -1302,33 +1325,66 @@ function commitEditedTextBlockInWorker(
       );
     }
 
-    // 3. Insere um novo FPDF_PAGEOBJECT por linha recalculada
+    // 4. Insere um novo FPDF_PAGEOBJECT por linha recalculada (com suporte a alinhamento na nova largura!)
     const [r, g, b, a] = payload.style.rgba;
-    payload.lines.forEach((lineText, i) => {
-      if (!lineText) return;
-      const textObj = fontPtr
-        ? mod.FPDFPageObj_CreateTextObj(handle.docPtr, fontPtr, payload.style.fontSizePt)
-        : mod.FPDFPageObj_NewTextObj(
-            handle.docPtr,
-            payload.style.standardFontName || 'Helvetica',
-            payload.style.fontSizePt
-          );
-      if (!textObj) return;
+    const measureBoundsPtr = malloc(mod, 16);
+    try {
+      payload.lines.forEach((lineText, i) => {
+        if (!lineText) return;
+        const textObj = fontPtr
+          ? mod.FPDFPageObj_CreateTextObj(handle.docPtr, fontPtr, payload.style.fontSizePt)
+          : mod.FPDFPageObj_NewTextObj(
+              handle.docPtr,
+              payload.style.standardFontName || 'Helvetica',
+              payload.style.fontSizePt
+            );
+        if (!textObj) return;
 
-      const utf16Ptr = encodeUtf16LE(mod, lineText);
-      try {
-        mod.FPDFText_SetText(textObj, utf16Ptr);
-      } finally {
-        free(mod, utf16Ptr);
-      }
+        const utf16Ptr = encodeUtf16LE(mod, lineText);
+        try {
+          mod.FPDFText_SetText(textObj, utf16Ptr);
+        } finally {
+          free(mod, utf16Ptr);
+        }
 
-      mod.FPDFPageObj_SetFillColor(textObj, r, g, b, a);
-      const yPos = payload.style.topBaselineYPt - i * payload.style.lineHeightPt;
-      mod.FPDFPageObj_Transform(textObj, 1, 0, 0, 1, payload.style.xPt, yPos);
-      mod.FPDFPage_InsertObject(pagePtr, textObj);
-    });
+        mod.FPDFPageObj_SetFillColor(textObj, r, g, b, a);
 
-    // 4. OBRIGATÓRIO: regenera o content stream da página
+        let lineXPt = payload.style.xPt;
+        const align = payload.style.alignment ?? 'left';
+        const boxW = payload.style.boxWidthPt ?? 0;
+        if (align !== 'left' && boxW > 0) {
+          if (
+            mod.FPDFPageObj_GetBounds(
+              textObj,
+              measureBoundsPtr,
+              measureBoundsPtr + 4,
+              measureBoundsPtr + 8,
+              measureBoundsPtr + 12
+            )
+          ) {
+            const mdv = view(mod);
+            const objW = Math.max(
+              0,
+              mdv.getFloat32(measureBoundsPtr + 8, true) -
+                mdv.getFloat32(measureBoundsPtr, true)
+            );
+            if (align === 'center') {
+              lineXPt = payload.style.xPt + Math.max(0, (boxW - objW) / 2);
+            } else if (align === 'right') {
+              lineXPt = payload.style.xPt + Math.max(0, boxW - objW);
+            }
+          }
+        }
+
+        const yPos = payload.style.topBaselineYPt - i * payload.style.lineHeightPt;
+        mod.FPDFPageObj_Transform(textObj, 1, 0, 0, 1, lineXPt, yPos);
+        mod.FPDFPage_InsertObject(pagePtr, textObj);
+      });
+    } finally {
+      free(mod, measureBoundsPtr);
+    }
+
+    // 5. OBRIGATÓRIO: regenera o content stream da página
     const ok = mod.FPDFPage_GenerateContent(pagePtr);
     if (!ok) {
       throw new Error('FPDFPage_GenerateContent falhou ao gravar edição de texto.');

@@ -59,10 +59,15 @@ export interface CommitTextBlockPayload {
   lines: string[];
   style: {
     xPt: number;
+    boxWidthPt?: number;
+    boxBottomYPt?: number;
+    boxTopYPt?: number;
     topBaselineYPt: number;
     lineHeightPt: number;
     fontSizePt: number;
+    alignment?: 'left' | 'center' | 'right';
     rgba: [number, number, number, number];
+    backgroundFillRgba?: [number, number, number, number] | null;
     standardFontName: string;
     fontBytes?: Uint8Array | null;
   };

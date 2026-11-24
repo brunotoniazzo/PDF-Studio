@@ -265,6 +265,7 @@ function PdfStudioInnerShell() {
           updateTabState(activeTab.tabId, {
             selectedAnnotationId: null,
             activeEditingBlockId: null,
+            activeTextBlockDraft: null,
             isSearchOpen: false,
           });
           return;

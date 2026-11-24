@@ -13,6 +13,7 @@ import type {
   PdfFormField,
   PdfLayerInfo,
   PdfPageGeometry,
+  PdfRect,
   PdfSignatureInfo,
   RecentDocumentEntry,
   RecoverableSessionEntry,
@@ -26,6 +27,24 @@ import {
   sharedPdfEngine,
 } from '@pdf-studio/pdf-engine';
 import type { EditorCommand } from './commands';
+
+export interface ActiveTextBlockDraft {
+  blockId: string;
+  sourceBlock: PdfEditableTextBlock;
+  pageIndex: number;
+  text: string;
+  rect: PdfRect;
+  fontSizePt: number;
+  lineHeightPt: number;
+  fontFamily: MetricFontFamily;
+  isBold: boolean;
+  isItalic: boolean;
+  alignment: 'left' | 'center' | 'right';
+  colorHex: string;
+  rgba: [number, number, number, number];
+  opaqueBackground: boolean;
+  backgroundColorHex: string;
+}
 
 export interface DocumentTabState {
   tabId: string;
@@ -56,6 +75,7 @@ export interface DocumentTabState {
   pageTheme: PageTheme;
   selectedAnnotationId: string | null;
   activeEditingBlockId: string | null;
+  activeTextBlockDraft: ActiveTextBlockDraft | null;
   selectedOrganizePages: number[];
   searchQuery: string;
   searchCaseSensitive: boolean;
@@ -397,6 +417,7 @@ export const usePdfStudioStore = create<PdfStudioStore>((set, get) => ({
       pageTheme: 'normal',
       selectedAnnotationId: null,
       activeEditingBlockId: null,
+      activeTextBlockDraft: null,
       selectedOrganizePages: [],
       searchQuery: '',
       searchCaseSensitive: false,
@@ -706,6 +727,7 @@ export const usePdfStudioStore = create<PdfStudioStore>((set, get) => ({
       formFields,
       editableBlocksByPage: {},
       activeEditingBlockId: null,
+      activeTextBlockDraft: null,
       currentPage: Math.min(tab.currentPage, maxPage),
       selectedOrganizePages: tab.selectedOrganizePages.filter((p) => p <= maxPage),
     });

@@ -4,7 +4,9 @@ import {
   ArrowUpToLine,
   Check,
   Copy,
+  GripHorizontal,
   Highlighter,
+  MoveHorizontal,
   ShieldAlert,
   StickyNote,
   Strikethrough,
@@ -44,6 +46,10 @@ import {
   usePdfStudioStore,
 } from '@pdf-studio/editor-core';
 import { usePlatformActions } from '../context/PlatformContext';
+import {
+  commitTextBlockDraftToPdf,
+  createDraftFromTextBlock,
+} from '../utils/textBlockCommit';
 
 export function PageStackView({
   tab,
@@ -73,7 +79,6 @@ export function PageStackView({
   const [bitmapLoaded, setBitmapLoaded] = useState(false);
   const [chars, setChars] = useState<PdfCharBox[]>([]);
   const [textBlocks, setTextBlocks] = useState<PdfEditableTextBlock[]>([]);
-  const [editingDraft, setEditingDraft] = useState('');
 
   // Interações temporárias na Camada 3
   const [draftRect, setDraftRect] = useState<{ start: PdfPoint; current: PdfPoint } | null>(
@@ -245,9 +250,12 @@ export function PageStackView({
       .then((blocks) => {
         if (cancelled) return;
         setTextBlocks(blocks);
+        const latestTab = usePdfStudioStore
+          .getState()
+          .tabs.find((t) => t.tabId === tab.tabId);
         updateTabState(tab.tabId, {
           editableBlocksByPage: {
-            ...tab.editableBlocksByPage,
+            ...(latestTab?.editableBlocksByPage ?? {}),
             [geometry.pageIndex]: blocks,
           },
         });
@@ -259,82 +267,81 @@ export function PageStackView({
   }, [activeTool, workMode, tab.docId, tab.bytes, geometry.pageIndex]);
 
   const activeEditingBlock = textBlocks.find((b) => b.id === tab.activeEditingBlockId);
+  const activeDraft =
+    tab.activeTextBlockDraft && tab.activeTextBlockDraft.pageIndex === geometry.pageIndex
+      ? tab.activeTextBlockDraft
+      : null;
 
-  const commitActiveTextBlock = async (block: PdfEditableTextBlock) => {
-    const newText = editingDraft;
-    if (newText === block.originalText) {
-      updateTabState(tab.tabId, { activeEditingBlockId: null });
-      return;
-    }
-
-    // Quebra linhas proporcionalmente à largura do bloco original
-    const rawLines = newText.split('\n');
-    const approxCharsPerLine = Math.max(
-      12,
-      Math.floor(
-        ((block.rect.right - block.rect.left) * 1.15) / Math.max(4, block.fontSizePt * 0.52)
-      )
-    );
-    const wrappedLines: string[] = [];
-    for (const rl of rawLines) {
-      if (rl.length <= approxCharsPerLine) {
-        wrappedLines.push(rl);
-      } else {
-        const words = rl.split(' ');
-        let curr = '';
-        for (const w of words) {
-          if ((curr + ' ' + w).trim().length > approxCharsPerLine && curr) {
-            wrappedLines.push(curr);
-            curr = w;
-          } else {
-            curr = curr ? `${curr} ${w}` : w;
-          }
-        }
-        if (curr) wrappedLines.push(curr);
-      }
-    }
-
-    const fontBytes = await platform.fontRepository.loadFallbackFontBytes(
-      block.fallbackFontFamily
-    );
-    const stdFont = mapMetricFamilyToStandardFont(
-      block.fallbackFontFamily,
-      block.isBold,
-      block.isItalic
-    );
-
-    const prevBytes = new Uint8Array(tab.bytes);
-    const topBaselineYPt =
-      block.lines[0]?.baselineYPt ?? block.rect.top - block.fontSizePt * 0.88;
-
-    const committed = await sharedPdfEngine.commitTextBlock({
-      docId: tab.docId,
-      pageIndex: geometry.pageIndex,
-      oldObjectIndices: block.objectIndices,
-      lines: wrappedLines,
-      style: {
-        xPt: block.rect.left,
-        topBaselineYPt,
-        lineHeightPt: block.lineHeightPt,
-        fontSizePt: block.fontSizePt,
-        rgba: block.rgba,
-        standardFontName: stdFont,
-        fontBytes,
-      },
+  const activateTextBlockForEditing = (block: PdfEditableTextBlock) => {
+    const draft = createDraftFromTextBlock(block);
+    updateTabState(tab.tabId, {
+      activeEditingBlockId: block.id,
+      activeTextBlockDraft: draft,
     });
+    openRightInspector('auto');
+  };
 
-    const cmd = new BinaryDocumentMutationCommand(
-      'Editar bloco de texto existente',
-      tab.tabId,
-      prevBytes,
-      committed.bytes,
-      async (id, b) => {
-        await usePdfStudioStore.getState().reloadTabBytesDirect(id, b);
+  type BlockHandleMode = 'move' | 'n' | 's' | 'e' | 'w' | 'nw' | 'ne' | 'sw' | 'se';
+
+  const startBlockTransform = (e: React.PointerEvent, mode: BlockHandleMode) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const currentTab = usePdfStudioStore
+      .getState()
+      .tabs.find((t) => t.tabId === tab.tabId);
+    const startDraft = currentTab?.activeTextBlockDraft;
+    if (!startDraft) return;
+
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    const startRect = { ...startDraft.rect };
+
+    const onMove = (ev: PointerEvent) => {
+      const dxPt = (ev.clientX - startClientX) / cssScale;
+      const dyPt = -(ev.clientY - startClientY) / cssScale;
+      const nextRect: PdfRect = { ...startRect };
+      const minW = 28;
+      const minH = Math.max(14, startDraft.fontSizePt * 1.15);
+
+      if (mode === 'move') {
+        nextRect.left = startRect.left + dxPt;
+        nextRect.right = startRect.right + dxPt;
+        nextRect.bottom = startRect.bottom + dyPt;
+        nextRect.top = startRect.top + dyPt;
+      } else {
+        if (mode.includes('e')) {
+          nextRect.right = Math.max(startRect.left + minW, startRect.right + dxPt);
+        }
+        if (mode.includes('w')) {
+          nextRect.left = Math.min(startRect.right - minW, startRect.left + dxPt);
+        }
+        if (mode.includes('n')) {
+          nextRect.top = Math.max(startRect.bottom + minH, startRect.top + dyPt);
+        }
+        if (mode.includes('s')) {
+          nextRect.bottom = Math.min(startRect.top - minH, startRect.bottom + dyPt);
+        }
       }
-    );
-    await executeCommand(tab.tabId, cmd);
-    updateTabState(tab.tabId, { activeEditingBlockId: null });
-    showToast('Bloco de texto atualizado no stream PDF.', 'success');
+
+      const latest = usePdfStudioStore
+        .getState()
+        .tabs.find((t) => t.tabId === tab.tabId)?.activeTextBlockDraft;
+      if (!latest) return;
+      updateTabState(tab.tabId, {
+        activeTextBlockDraft: {
+          ...latest,
+          rect: nextRect,
+        },
+      });
+    };
+
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   };
 
   // Agrupa caracteres da Camada 2 em linhas leves para seleção fluida de texto
@@ -1219,82 +1226,237 @@ export function PageStackView({
           );
         })}
 
-      {/* CAMADA 4 (Topo): Editor DOM de Blocos de Texto Existentes (Latência Zero) */}
+      {/* CAMADA 4 (Topo): Editor DOM Expansível e Reposicionável de Blocos de Texto */}
       {activeTool === 'edit-text' &&
         textBlocks.map((block) => {
-          const box = pdfRectToSvg(block.rect, effSize.heightPt, geometry.cropBox);
-          const isEditingThis = tab.activeEditingBlockId === block.id;
+          const origBox = pdfRectToSvg(block.rect, effSize.heightPt, geometry.cropBox);
+          const isEditingThis =
+            tab.activeEditingBlockId === block.id && activeDraft?.blockId === block.id;
 
-          if (isEditingThis) {
+          if (isEditingThis && activeDraft) {
+            const draftBox = pdfRectToSvg(
+              activeDraft.rect,
+              effSize.heightPt,
+              geometry.cropBox
+            );
+            const widthMm = ptToMm(activeDraft.rect.right - activeDraft.rect.left);
+            const heightMm = ptToMm(activeDraft.rect.top - activeDraft.rect.bottom);
+
             return (
-              <div
-                key={block.id}
-                style={{
-                  left: Math.max(0, box.x * cssScale - 3),
-                  top: Math.max(0, box.y * cssScale - 3),
-                  minWidth: Math.max(120, box.width * cssScale + 28),
-                  minHeight: Math.max(28, box.height * cssScale + 12),
-                }}
-                className="pointer-events-auto absolute z-30 rounded border-2 border-[#1B2952] bg-white p-1 shadow-lg"
-              >
-                <textarea
-                  autoFocus
-                  value={editingDraft}
-                  onChange={(e) => setEditingDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                      e.preventDefault();
-                      void commitActiveTextBlock(block);
-                    } else if (e.key === 'Escape') {
-                      updateTabState(tab.tabId, { activeEditingBlockId: null });
-                    }
-                  }}
+              <React.Fragment key={block.id}>
+                {/* Máscara sutil sobre a área original para não duplicar visualmente ao mover/reduzir */}
+                <div
                   style={{
-                    fontSize: Math.max(10, block.fontSizePt * cssScale),
-                    lineHeight: `${Math.max(12, block.lineHeightPt * cssScale)}px`,
-                    color: block.colorHex,
-                    width: Math.max(140, box.width * cssScale + 24),
-                    minHeight: Math.max(26, box.height * cssScale + 8),
+                    left: origBox.x * cssScale - 2,
+                    top: origBox.y * cssScale - 2,
+                    width: origBox.width * cssScale + 4,
+                    height: origBox.height * cssScale + 4,
                   }}
-                  className="block resize outline-none"
+                  className="pointer-events-none absolute z-20 bg-white/95"
                 />
-                <div className="mt-1 flex items-center justify-end gap-1 border-t border-slate-200 pt-1">
-                  <button
-                    onClick={() => updateTabState(tab.tabId, { activeEditingBlockId: null })}
-                    className="inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-[11px] text-slate-600 hover:bg-slate-100"
-                  >
-                    <X className="h-3 w-3" strokeWidth={1.5} />
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={() => void commitActiveTextBlock(block)}
-                    className="inline-flex items-center gap-0.5 rounded bg-[#1B2952] px-2.5 py-0.5 text-[11px] font-medium text-white hover:bg-[#2F4D8F]"
-                  >
-                    <Check className="h-3 w-3" strokeWidth={1.5} />
-                    Aplicar
-                  </button>
+
+                {/* Caixa Interativa Redimensionável (8 alças) e Reposicionável além do bloco original */}
+                <div
+                  style={{
+                    left: Math.max(0, draftBox.x * cssScale - 4),
+                    top: Math.max(0, draftBox.y * cssScale - 2),
+                    width: Math.max(80, draftBox.width * cssScale + 16),
+                    minHeight: Math.max(32, draftBox.height * cssScale + 8),
+                    backgroundColor: activeDraft.opaqueBackground
+                      ? activeDraft.backgroundColorHex
+                      : 'rgba(255,255,255,0.94)',
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="pointer-events-auto absolute z-30 flex flex-col rounded border-2 border-[#1B2952] shadow-xl"
+                >
+                  {/* Barra Flutuante Superior de Movimentação + Expansão Rápida */}
+                  <div className="absolute -top-7 left-0 flex items-center gap-1 whitespace-nowrap rounded-t-md bg-[#1B2952] px-2 py-0.5 text-[10px] font-medium text-white shadow">
+                    <div
+                      onPointerDown={(e) => startBlockTransform(e, 'move')}
+                      title="Arraste para mover este bloco para qualquer posição da página"
+                      className="flex cursor-move items-center gap-1 pr-1"
+                    >
+                      <GripHorizontal className="h-3 w-3 opacity-85" strokeWidth={1.5} />
+                      <span className="tabular-nums">
+                        {widthMm} × {heightMm} mm
+                      </span>
+                    </div>
+                    <div className="h-3 w-px bg-white/25" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const margin = 36;
+                        updateTabState(tab.tabId, {
+                          activeTextBlockDraft: {
+                            ...activeDraft,
+                            rect: {
+                              ...activeDraft.rect,
+                              left: geometry.cropBox.left + margin,
+                              right: geometry.cropBox.left + effSize.widthPt - margin,
+                            },
+                          },
+                        });
+                      }}
+                      title="Expandir bloco para toda a largura útil da página"
+                      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-white/15"
+                    >
+                      <MoveHorizontal className="h-3 w-3" strokeWidth={1.5} />
+                      <span>Expandir largura</span>
+                    </button>
+                  </div>
+
+                  {/* Área de Texto Auto-Reflow sincronizada com a nova largura expandida */}
+                  <textarea
+                    autoFocus
+                    value={activeDraft.text}
+                    onChange={(e) =>
+                      updateTabState(tab.tabId, {
+                        activeTextBlockDraft: {
+                          ...activeDraft,
+                          text: e.target.value,
+                        },
+                      })
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+                        void commitTextBlockDraftToPdf({
+                          tab,
+                          block,
+                          draft: activeDraft,
+                          platform,
+                        });
+                      } else if (e.key === 'Escape') {
+                        updateTabState(tab.tabId, {
+                          activeEditingBlockId: null,
+                          activeTextBlockDraft: null,
+                        });
+                      }
+                    }}
+                    style={{
+                      fontSize: Math.max(9, activeDraft.fontSizePt * cssScale),
+                      lineHeight: `${Math.max(12, activeDraft.lineHeightPt * cssScale)}px`,
+                      color: activeDraft.colorHex,
+                      fontWeight: activeDraft.isBold ? 700 : 400,
+                      fontStyle: activeDraft.isItalic ? 'italic' : 'normal',
+                      textAlign: activeDraft.alignment,
+                      minHeight: Math.max(28, draftBox.height * cssScale),
+                    }}
+                    className="w-full flex-1 resize-none bg-transparent p-1 outline-none"
+                  />
+
+                  {/* Barra Flutuante Inferior de Confirmação / Exclusão */}
+                  <div className="flex items-center justify-between gap-1 border-t border-slate-200 bg-slate-50/95 px-1.5 py-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void commitTextBlockDraftToPdf({
+                          tab,
+                          block,
+                          draft: activeDraft,
+                          platform,
+                          deleteBlockOnly: true,
+                        })
+                      }
+                      title="Remover este bloco de texto da página"
+                      className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] text-red-600 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-3 w-3" strokeWidth={1.5} />
+                      <span className="hidden sm:inline">Excluir</span>
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateTabState(tab.tabId, {
+                            activeEditingBlockId: null,
+                            activeTextBlockDraft: null,
+                          })
+                        }
+                        className="inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-[11px] text-slate-600 hover:bg-slate-200/70"
+                      >
+                        <X className="h-3 w-3" strokeWidth={1.5} />
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void commitTextBlockDraftToPdf({
+                            tab,
+                            block,
+                            draft: activeDraft,
+                            platform,
+                          })
+                        }
+                        className="inline-flex items-center gap-0.5 rounded bg-[#1B2952] px-2.5 py-0.5 text-[11px] font-medium text-white hover:bg-[#2F4D8F]"
+                      >
+                        <Check className="h-3 w-3" strokeWidth={1.5} />
+                        Aplicar
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 8 Alças de Redimensionamento / Expansão Livre (Cantos e Laterais) */}
+                  <div
+                    onPointerDown={(e) => startBlockTransform(e, 'nw')}
+                    className="absolute -left-1.5 -top-1.5 h-3 w-3 cursor-nwse-resize rounded-sm border border-white bg-[#1B2952] shadow"
+                  />
+                  <div
+                    onPointerDown={(e) => startBlockTransform(e, 'n')}
+                    className="absolute -top-1.5 left-1/2 h-2.5 w-4 -translate-x-1/2 cursor-ns-resize rounded-sm border border-white bg-[#2F4D8F] shadow"
+                  />
+                  <div
+                    onPointerDown={(e) => startBlockTransform(e, 'ne')}
+                    className="absolute -right-1.5 -top-1.5 h-3 w-3 cursor-nesw-resize rounded-sm border border-white bg-[#1B2952] shadow"
+                  />
+                  <div
+                    onPointerDown={(e) => startBlockTransform(e, 'e')}
+                    title="Arraste para expandir a largura do bloco à direita"
+                    className="absolute -right-1.5 top-1/2 h-5 w-2.5 -translate-y-1/2 cursor-ew-resize rounded-sm border border-white bg-[#2F4D8F] shadow"
+                  />
+                  <div
+                    onPointerDown={(e) => startBlockTransform(e, 'se')}
+                    title="Arraste para expandir largura e altura livremente"
+                    className="absolute -bottom-1.5 -right-1.5 h-3 w-3 cursor-nwse-resize rounded-sm border border-white bg-[#1B2952] shadow"
+                  />
+                  <div
+                    onPointerDown={(e) => startBlockTransform(e, 's')}
+                    className="absolute -bottom-1.5 left-1/2 h-2.5 w-4 -translate-x-1/2 cursor-ns-resize rounded-sm border border-white bg-[#2F4D8F] shadow"
+                  />
+                  <div
+                    onPointerDown={(e) => startBlockTransform(e, 'sw')}
+                    className="absolute -bottom-1.5 -left-1.5 h-3 w-3 cursor-nesw-resize rounded-sm border border-white bg-[#1B2952] shadow"
+                  />
+                  <div
+                    onPointerDown={(e) => startBlockTransform(e, 'w')}
+                    title="Arraste para expandir a largura do bloco à esquerda"
+                    className="absolute -left-1.5 top-1/2 h-5 w-2.5 -translate-y-1/2 cursor-ew-resize rounded-sm border border-white bg-[#2F4D8F] shadow"
+                  />
                 </div>
-              </div>
+              </React.Fragment>
             );
           }
 
           return (
             <div
               key={block.id}
-              title="Clique duplo para editar este bloco de texto"
+              title="Clique para editar, mover ou expandir este bloco de texto além do padrão original"
+              onClick={(e) => {
+                e.stopPropagation();
+                activateTextBlockForEditing(block);
+              }}
               onDoubleClick={(e) => {
                 e.stopPropagation();
-                setEditingDraft(block.originalText);
-                updateTabState(tab.tabId, { activeEditingBlockId: block.id });
-                openRightInspector('auto');
+                activateTextBlockForEditing(block);
               }}
               style={{
-                left: box.x * cssScale - 2,
-                top: box.y * cssScale - 2,
-                width: box.width * cssScale + 4,
-                height: box.height * cssScale + 4,
+                left: origBox.x * cssScale - 2,
+                top: origBox.y * cssScale - 2,
+                width: origBox.width * cssScale + 4,
+                height: origBox.height * cssScale + 4,
               }}
-              className="pointer-events-auto absolute cursor-text rounded border border-dashed border-[#2F4D8F]/45 transition hover:border-[#1B2952] hover:bg-[#1B2952]/5"
+              className="pointer-events-auto absolute cursor-pointer rounded border border-dashed border-[#2F4D8F]/55 transition hover:border-[#1B2952] hover:bg-[#1B2952]/8"
             />
           );
         })}
