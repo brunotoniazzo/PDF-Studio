@@ -52,11 +52,26 @@ export interface RenderTilePayload {
   generation: number;
 }
 
+export interface CommitStyledSegment {
+  text: string;
+  fontKey: string;
+  standardFontName: string;
+  fontSizePt: number;
+  isUnderline?: boolean;
+  rgba: [number, number, number, number];
+}
+
+export interface CommitStyledLine {
+  segments: CommitStyledSegment[];
+}
+
 export interface CommitTextBlockPayload {
   docId: string;
   pageIndex: number;
   oldObjectIndices: number[];
   lines: string[];
+  styledLines?: CommitStyledLine[];
+  fontBinariesByKey?: Record<string, Uint8Array | null | undefined>;
   style: {
     xPt: number;
     boxWidthPt?: number;

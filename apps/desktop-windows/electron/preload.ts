@@ -15,7 +15,8 @@ contextBridge.exposeInMainWorld('pdfStudioDesktop', {
     ipcRenderer.invoke('fs:exportFile', payload),
   revealInExplorer: (filePath: string) => ipcRenderer.invoke('fs:revealInExplorer', filePath),
 
-  loadSystemFont: (family: string) => ipcRenderer.invoke('fonts:loadSystemFont', family),
+  loadSystemFont: (payload: string | { family: string; bold?: boolean; italic?: boolean }) =>
+    ipcRenderer.invoke('fonts:loadSystemFont', payload),
 
   saveRecovery: (snap: unknown) => ipcRenderer.invoke('recovery:save', snap),
   removeRecovery: (tabId: string) => ipcRenderer.invoke('recovery:remove', tabId),

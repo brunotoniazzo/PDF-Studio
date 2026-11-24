@@ -16,6 +16,7 @@ import {
   Shield,
   ShieldAlert,
   Trash2,
+  Underline,
   X,
 } from 'lucide-react';
 import type {
@@ -52,7 +53,13 @@ import {
   usePdfStudioStore,
 } from '@pdf-studio/editor-core';
 import { usePlatformActions } from '../context/PlatformContext';
+import {
+  getEffectiveRichStyle,
+  getSelectedTextPreview,
+  hasActiveSubstringSelection,
+} from '../utils/richTextRuns';
 import { commitTextBlockDraftToPdf } from '../utils/textBlockCommit';
+import { applyPatchToDraft } from './RichTextBlockEditor';
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -433,6 +440,14 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                 const boxWidthPt = Math.round(draft.rect.right - draft.rect.left);
                 const boxHeightPt = Math.round(draft.rect.top - draft.rect.bottom);
 
+                const effStyle = getEffectiveRichStyle(
+                  draft.runs,
+                  draft.selection,
+                  draft.defaultStyle
+                );
+                const hasSelection = hasActiveSubstringSelection(draft.selection);
+                const selectedSnippet = getSelectedTextPreview(draft.runs, draft.selection);
+
                 return (
                   <div className="space-y-3.5">
                     <div className="flex items-center justify-between">
@@ -440,6 +455,8 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                         Bloco de Texto Expansível
                       </span>
                       <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() =>
                           void commitTextBlockDraftToPdf({
                             tab,
@@ -455,6 +472,47 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                         <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
                         Excluir
                       </button>
+                    </div>
+
+                    {/* Indicador Claro de Escopo: Palavra/Trecho Selecionado vs Bloco Inteiro */}
+                    <div
+                      className={`flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-[11px] ${
+                        hasSelection
+                          ? 'border-blue-500/40 bg-blue-500/10 text-blue-800 dark:text-blue-200'
+                          : 'border-slate-500/20 bg-slate-500/5 opacity-85'
+                      }`}
+                    >
+                      <span className="truncate">
+                        {hasSelection ? (
+                          <>
+                            Formatando trecho:{' '}
+                            <strong>
+                              &ldquo;{selectedSnippet.slice(0, 22)}
+                              {selectedSnippet.length > 22 ? '…' : ''}&rdquo;
+                            </strong>
+                          </>
+                        ) : (
+                          'Sem seleção: formatando o bloco inteiro'
+                        )}
+                      </span>
+                      {hasSelection && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            patchDraft({
+                              selection: {
+                                start: draft.selection.end,
+                                end: draft.selection.end,
+                              },
+                              formatRevision: draft.formatRevision + 1,
+                            })
+                          }
+                          className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium hover:bg-blue-500/20"
+                          title="Desmarcar seleção para voltar a formatar o bloco inteiro"
+                        >
+                          Bloco todo
+                        </button>
+                      )}
                     </div>
 
                     {/* Geometria e Expansão Livre do Bloco */}
@@ -521,6 +579,7 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
 
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => {
                           const margin = 36;
                           const x0 = curGeo?.cropBox.left ?? 0;
@@ -539,15 +598,17 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                       </button>
                     </div>
 
-                    {/* Tipografia e Estilo */}
+                    {/* Tipografia e Estilo (respeita seleção ou bloco inteiro!) */}
                     <div>
                       <label className="mb-1 block opacity-75">
-                        Família da Fonte (Original: {activeTextBlock.cleanFontName})
+                        Família da Fonte {hasSelection ? '(Trecho)' : `(Bloco)`}
                       </label>
                       <select
-                        value={draft.fontFamily}
+                        value={effStyle.fontFamily}
                         onChange={(e) =>
-                          patchDraft({ fontFamily: e.target.value as MetricFontFamily })
+                          applyPatchToDraft(tab.tabId, draft, {
+                            fontFamily: e.target.value as MetricFontFamily,
+                          })
                         }
                         className={`h-8 w-full rounded border px-2 ${
                           darkMode
@@ -564,19 +625,31 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
 
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="mb-1 block opacity-75">Tamanho (pt)</label>
+                        <label className="mb-1 block opacity-75">
+                          Tamanho {hasSelection ? '(Trecho)' : '(pt)'}
+                        </label>
                         <input
                           type="number"
                           min={6}
                           max={96}
                           step={0.5}
-                          value={draft.fontSizePt}
+                          value={effStyle.fontSizePt}
                           onChange={(e) => {
                             const fs = Math.max(6, Number(e.target.value) || 11);
-                            patchDraft({
-                              fontSizePt: fs,
-                              lineHeightPt: Math.round(fs * 1.25 * 10) / 10,
-                            });
+                            applyPatchToDraft(tab.tabId, draft, { fontSizePt: fs });
+                            if (!hasSelection) {
+                              const latest = usePdfStudioStore
+                                .getState()
+                                .tabs.find((t) => t.tabId === tab.tabId)?.activeTextBlockDraft;
+                              if (latest) {
+                                updateTabState(tab.tabId, {
+                                  activeTextBlockDraft: {
+                                    ...latest,
+                                    lineHeightPt: Math.round(fs * 1.25 * 10) / 10,
+                                  },
+                                });
+                              }
+                            }
                           }}
                           className={`h-8 w-full rounded border px-2 tabular-nums ${
                             darkMode
@@ -607,15 +680,24 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                       </div>
                     </div>
 
-                    {/* Negrito, Itálico e Alinhamento */}
+                    {/* Negrito, Itálico, Sublinhado e Alinhamento */}
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => patchDraft({ isBold: !draft.isBold })}
-                          title="Negrito"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() =>
+                            applyPatchToDraft(tab.tabId, draft, {
+                              isBold: !effStyle.isBold,
+                            })
+                          }
+                          title={
+                            hasSelection
+                              ? 'Negrito apenas no trecho selecionado (Ctrl+B)'
+                              : 'Negrito no bloco inteiro (Ctrl+B)'
+                          }
                           className={`flex h-8 w-8 items-center justify-center rounded border ${
-                            draft.isBold
+                            effStyle.isBold
                               ? 'border-[#1B2952] bg-[#1B2952] text-white'
                               : 'border-slate-500/30 hover:bg-slate-500/10'
                           }`}
@@ -624,15 +706,45 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                         </button>
                         <button
                           type="button"
-                          onClick={() => patchDraft({ isItalic: !draft.isItalic })}
-                          title="Itálico"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() =>
+                            applyPatchToDraft(tab.tabId, draft, {
+                              isItalic: !effStyle.isItalic,
+                            })
+                          }
+                          title={
+                            hasSelection
+                              ? 'Itálico apenas no trecho selecionado (Ctrl+I)'
+                              : 'Itálico no bloco inteiro (Ctrl+I)'
+                          }
                           className={`flex h-8 w-8 items-center justify-center rounded border ${
-                            draft.isItalic
+                            effStyle.isItalic
                               ? 'border-[#1B2952] bg-[#1B2952] text-white'
                               : 'border-slate-500/30 hover:bg-slate-500/10'
                           }`}
                         >
                           <Italic className="h-3.5 w-3.5" strokeWidth={1.8} />
+                        </button>
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() =>
+                            applyPatchToDraft(tab.tabId, draft, {
+                              isUnderline: !effStyle.isUnderline,
+                            })
+                          }
+                          title={
+                            hasSelection
+                              ? 'Sublinhado apenas no trecho selecionado (Ctrl+U)'
+                              : 'Sublinhado no bloco inteiro (Ctrl+U)'
+                          }
+                          className={`flex h-8 w-8 items-center justify-center rounded border ${
+                            effStyle.isUnderline
+                              ? 'border-[#1B2952] bg-[#1B2952] text-white'
+                              : 'border-slate-500/30 hover:bg-slate-500/10'
+                          }`}
+                        >
+                          <Underline className="h-3.5 w-3.5" strokeWidth={1.8} />
                         </button>
                       </div>
 
@@ -647,6 +759,7 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                           <button
                             key={al}
                             type="button"
+                            onMouseDown={(e) => e.preventDefault()}
                             onClick={() => patchDraft({ alignment: al })}
                             title={lbl}
                             className={`flex h-8 w-8 items-center justify-center rounded border ${
@@ -661,19 +774,24 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                       </div>
                     </div>
 
-                    {/* Cor do Texto */}
+                    {/* Cor do Texto (Trecho ou Bloco) */}
                     <div>
-                      <label className="mb-1.5 block opacity-75">Cor do Texto</label>
+                      <label className="mb-1.5 block opacity-75">
+                        Cor do Texto {hasSelection ? '(Trecho selecionado)' : '(Bloco inteiro)'}
+                      </label>
                       <div className="flex items-center gap-1.5">
                         {['#0F172A', '#1B2952', '#2F4D8F', '#DC2626', '#047857', '#64748B'].map(
                           (c) => (
                             <button
                               key={c}
                               type="button"
-                              onClick={() => patchDraft({ colorHex: c })}
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() =>
+                                applyPatchToDraft(tab.tabId, draft, { colorHex: c })
+                              }
                               style={{ backgroundColor: c }}
                               className={`h-5 w-5 rounded-full border ${
-                                draft.colorHex.toLowerCase() === c.toLowerCase()
+                                effStyle.colorHex.toLowerCase() === c.toLowerCase()
                                   ? 'ring-2 ring-[#1B2952] dark:ring-white'
                                   : 'border-black/20'
                               }`}
@@ -682,8 +800,12 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                         )}
                         <input
                           type="color"
-                          value={draft.colorHex}
-                          onChange={(e) => patchDraft({ colorHex: e.target.value })}
+                          value={effStyle.colorHex}
+                          onChange={(e) =>
+                            applyPatchToDraft(tab.tabId, draft, {
+                              colorHex: e.target.value,
+                            })
+                          }
                           className="ml-auto h-6 w-8 cursor-pointer rounded border-0 bg-transparent p-0"
                         />
                       </div>

@@ -67,7 +67,10 @@ export interface SystemFontDescriptor {
 
 export interface IFontRepository {
   listAvailableFonts(): Promise<SystemFontDescriptor[]>;
-  loadFallbackFontBytes(family: MetricFontFamily): Promise<Uint8Array | null>;
+  loadFallbackFontBytes(
+    family: MetricFontFamily,
+    options?: { bold?: boolean; italic?: boolean }
+  ): Promise<Uint8Array | null>;
 }
 
 export interface SavedVisualSignature {

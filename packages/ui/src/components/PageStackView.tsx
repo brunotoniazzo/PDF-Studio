@@ -46,10 +46,8 @@ import {
   usePdfStudioStore,
 } from '@pdf-studio/editor-core';
 import { usePlatformActions } from '../context/PlatformContext';
-import {
-  commitTextBlockDraftToPdf,
-  createDraftFromTextBlock,
-} from '../utils/textBlockCommit';
+import { createDraftFromTextBlock } from '../utils/textBlockCommit';
+import { RichTextBlockEditor } from './RichTextBlockEditor';
 
 export function PageStackView({
   tab,
@@ -1234,207 +1232,17 @@ export function PageStackView({
             tab.activeEditingBlockId === block.id && activeDraft?.blockId === block.id;
 
           if (isEditingThis && activeDraft) {
-            const draftBox = pdfRectToSvg(
-              activeDraft.rect,
-              effSize.heightPt,
-              geometry.cropBox
-            );
-            const widthMm = ptToMm(activeDraft.rect.right - activeDraft.rect.left);
-            const heightMm = ptToMm(activeDraft.rect.top - activeDraft.rect.bottom);
-
             return (
-              <React.Fragment key={block.id}>
-                {/* Máscara sutil sobre a área original para não duplicar visualmente ao mover/reduzir */}
-                <div
-                  style={{
-                    left: origBox.x * cssScale - 2,
-                    top: origBox.y * cssScale - 2,
-                    width: origBox.width * cssScale + 4,
-                    height: origBox.height * cssScale + 4,
-                  }}
-                  className="pointer-events-none absolute z-20 bg-white/95"
-                />
-
-                {/* Caixa Interativa Redimensionável (8 alças) e Reposicionável além do bloco original */}
-                <div
-                  style={{
-                    left: Math.max(0, draftBox.x * cssScale - 4),
-                    top: Math.max(0, draftBox.y * cssScale - 2),
-                    width: Math.max(80, draftBox.width * cssScale + 16),
-                    minHeight: Math.max(32, draftBox.height * cssScale + 8),
-                    backgroundColor: activeDraft.opaqueBackground
-                      ? activeDraft.backgroundColorHex
-                      : 'rgba(255,255,255,0.94)',
-                  }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  className="pointer-events-auto absolute z-30 flex flex-col rounded border-2 border-[#1B2952] shadow-xl"
-                >
-                  {/* Barra Flutuante Superior de Movimentação + Expansão Rápida */}
-                  <div className="absolute -top-7 left-0 flex items-center gap-1 whitespace-nowrap rounded-t-md bg-[#1B2952] px-2 py-0.5 text-[10px] font-medium text-white shadow">
-                    <div
-                      onPointerDown={(e) => startBlockTransform(e, 'move')}
-                      title="Arraste para mover este bloco para qualquer posição da página"
-                      className="flex cursor-move items-center gap-1 pr-1"
-                    >
-                      <GripHorizontal className="h-3 w-3 opacity-85" strokeWidth={1.5} />
-                      <span className="tabular-nums">
-                        {widthMm} × {heightMm} mm
-                      </span>
-                    </div>
-                    <div className="h-3 w-px bg-white/25" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const margin = 36;
-                        updateTabState(tab.tabId, {
-                          activeTextBlockDraft: {
-                            ...activeDraft,
-                            rect: {
-                              ...activeDraft.rect,
-                              left: geometry.cropBox.left + margin,
-                              right: geometry.cropBox.left + effSize.widthPt - margin,
-                            },
-                          },
-                        });
-                      }}
-                      title="Expandir bloco para toda a largura útil da página"
-                      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-white/15"
-                    >
-                      <MoveHorizontal className="h-3 w-3" strokeWidth={1.5} />
-                      <span>Expandir largura</span>
-                    </button>
-                  </div>
-
-                  {/* Área de Texto Auto-Reflow sincronizada com a nova largura expandida */}
-                  <textarea
-                    autoFocus
-                    value={activeDraft.text}
-                    onChange={(e) =>
-                      updateTabState(tab.tabId, {
-                        activeTextBlockDraft: {
-                          ...activeDraft,
-                          text: e.target.value,
-                        },
-                      })
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                        e.preventDefault();
-                        void commitTextBlockDraftToPdf({
-                          tab,
-                          block,
-                          draft: activeDraft,
-                          platform,
-                        });
-                      } else if (e.key === 'Escape') {
-                        updateTabState(tab.tabId, {
-                          activeEditingBlockId: null,
-                          activeTextBlockDraft: null,
-                        });
-                      }
-                    }}
-                    style={{
-                      fontSize: Math.max(9, activeDraft.fontSizePt * cssScale),
-                      lineHeight: `${Math.max(12, activeDraft.lineHeightPt * cssScale)}px`,
-                      color: activeDraft.colorHex,
-                      fontWeight: activeDraft.isBold ? 700 : 400,
-                      fontStyle: activeDraft.isItalic ? 'italic' : 'normal',
-                      textAlign: activeDraft.alignment,
-                      minHeight: Math.max(28, draftBox.height * cssScale),
-                    }}
-                    className="w-full flex-1 resize-none bg-transparent p-1 outline-none"
-                  />
-
-                  {/* Barra Flutuante Inferior de Confirmação / Exclusão */}
-                  <div className="flex items-center justify-between gap-1 border-t border-slate-200 bg-slate-50/95 px-1.5 py-1">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void commitTextBlockDraftToPdf({
-                          tab,
-                          block,
-                          draft: activeDraft,
-                          platform,
-                          deleteBlockOnly: true,
-                        })
-                      }
-                      title="Remover este bloco de texto da página"
-                      className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] text-red-600 hover:bg-red-50"
-                    >
-                      <Trash2 className="h-3 w-3" strokeWidth={1.5} />
-                      <span className="hidden sm:inline">Excluir</span>
-                    </button>
-
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateTabState(tab.tabId, {
-                            activeEditingBlockId: null,
-                            activeTextBlockDraft: null,
-                          })
-                        }
-                        className="inline-flex items-center gap-0.5 rounded px-2 py-0.5 text-[11px] text-slate-600 hover:bg-slate-200/70"
-                      >
-                        <X className="h-3 w-3" strokeWidth={1.5} />
-                        Cancelar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void commitTextBlockDraftToPdf({
-                            tab,
-                            block,
-                            draft: activeDraft,
-                            platform,
-                          })
-                        }
-                        className="inline-flex items-center gap-0.5 rounded bg-[#1B2952] px-2.5 py-0.5 text-[11px] font-medium text-white hover:bg-[#2F4D8F]"
-                      >
-                        <Check className="h-3 w-3" strokeWidth={1.5} />
-                        Aplicar
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 8 Alças de Redimensionamento / Expansão Livre (Cantos e Laterais) */}
-                  <div
-                    onPointerDown={(e) => startBlockTransform(e, 'nw')}
-                    className="absolute -left-1.5 -top-1.5 h-3 w-3 cursor-nwse-resize rounded-sm border border-white bg-[#1B2952] shadow"
-                  />
-                  <div
-                    onPointerDown={(e) => startBlockTransform(e, 'n')}
-                    className="absolute -top-1.5 left-1/2 h-2.5 w-4 -translate-x-1/2 cursor-ns-resize rounded-sm border border-white bg-[#2F4D8F] shadow"
-                  />
-                  <div
-                    onPointerDown={(e) => startBlockTransform(e, 'ne')}
-                    className="absolute -right-1.5 -top-1.5 h-3 w-3 cursor-nesw-resize rounded-sm border border-white bg-[#1B2952] shadow"
-                  />
-                  <div
-                    onPointerDown={(e) => startBlockTransform(e, 'e')}
-                    title="Arraste para expandir a largura do bloco à direita"
-                    className="absolute -right-1.5 top-1/2 h-5 w-2.5 -translate-y-1/2 cursor-ew-resize rounded-sm border border-white bg-[#2F4D8F] shadow"
-                  />
-                  <div
-                    onPointerDown={(e) => startBlockTransform(e, 'se')}
-                    title="Arraste para expandir largura e altura livremente"
-                    className="absolute -bottom-1.5 -right-1.5 h-3 w-3 cursor-nwse-resize rounded-sm border border-white bg-[#1B2952] shadow"
-                  />
-                  <div
-                    onPointerDown={(e) => startBlockTransform(e, 's')}
-                    className="absolute -bottom-1.5 left-1/2 h-2.5 w-4 -translate-x-1/2 cursor-ns-resize rounded-sm border border-white bg-[#2F4D8F] shadow"
-                  />
-                  <div
-                    onPointerDown={(e) => startBlockTransform(e, 'sw')}
-                    className="absolute -bottom-1.5 -left-1.5 h-3 w-3 cursor-nesw-resize rounded-sm border border-white bg-[#1B2952] shadow"
-                  />
-                  <div
-                    onPointerDown={(e) => startBlockTransform(e, 'w')}
-                    title="Arraste para expandir a largura do bloco à esquerda"
-                    className="absolute -left-1.5 top-1/2 h-5 w-2.5 -translate-y-1/2 cursor-ew-resize rounded-sm border border-white bg-[#2F4D8F] shadow"
-                  />
-                </div>
-              </React.Fragment>
+              <RichTextBlockEditor
+                key={block.id}
+                tab={tab}
+                block={block}
+                draft={activeDraft}
+                geometry={geometry}
+                effSize={effSize}
+                cssScale={cssScale}
+                onStartTransform={startBlockTransform}
+              />
             );
           }
 

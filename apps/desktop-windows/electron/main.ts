@@ -257,28 +257,50 @@ app.whenReady().then(async () => {
   });
 
   // Fontes TrueType Nativas do Windows (C:\Windows\Fonts) para CID-Keyed TrueType no PDFium
-  ipcMain.handle('fonts:loadSystemFont', async (_ev, family: string) => {
-    const winDir = process.env.WINDIR || 'C:\\Windows';
-    const fontFileByFamily: Record<string, string[]> = {
-      sans: ['arial.ttf', 'segoeui.ttf'],
-      serif: ['times.ttf', 'georgia.ttf'],
-      mono: ['cour.ttf', 'consola.ttf'],
-      calibri: ['calibri.ttf', 'segoeui.ttf'],
-    };
-    const candidates = fontFileByFamily[family] ?? ['arial.ttf'];
-    for (const file of candidates) {
-      const fullPath = path.join(winDir, 'Fonts', file);
-      try {
-        if (fsSync.existsSync(fullPath)) {
-          const buf = await fs.readFile(fullPath);
-          return new Uint8Array(buf);
+  ipcMain.handle(
+    'fonts:loadSystemFont',
+    async (_ev, payload: string | { family: string; bold?: boolean; italic?: boolean }) => {
+      const winDir = process.env.WINDIR || 'C:\\Windows';
+      const family = typeof payload === 'string' ? payload : payload.family;
+      const bold = typeof payload === 'object' && Boolean(payload?.bold);
+      const italic = typeof payload === 'object' && Boolean(payload?.italic);
+
+      const variantMap: Record<string, string[]> = {
+        'sans:regular': ['arial.ttf', 'segoeui.ttf'],
+        'sans:bold': ['arialbd.ttf', 'segoeuib.ttf', 'arial.ttf'],
+        'sans:italic': ['ariali.ttf', 'segoeuii.ttf', 'arial.ttf'],
+        'sans:bolditalic': ['arialbi.ttf', 'segoeuiz.ttf', 'arialbd.ttf', 'arial.ttf'],
+        'serif:regular': ['times.ttf', 'georgia.ttf'],
+        'serif:bold': ['timesbd.ttf', 'georgiab.ttf', 'times.ttf'],
+        'serif:italic': ['timesi.ttf', 'georgiai.ttf', 'times.ttf'],
+        'serif:bolditalic': ['timesbi.ttf', 'georgiaz.ttf', 'timesbd.ttf', 'times.ttf'],
+        'mono:regular': ['cour.ttf', 'consola.ttf'],
+        'mono:bold': ['courbd.ttf', 'consolab.ttf', 'cour.ttf'],
+        'mono:italic': ['couri.ttf', 'consolai.ttf', 'cour.ttf'],
+        'mono:bolditalic': ['courbi.ttf', 'consolaz.ttf', 'courbd.ttf', 'cour.ttf'],
+        'calibri:regular': ['calibri.ttf', 'segoeui.ttf'],
+        'calibri:bold': ['calibrib.ttf', 'segoeuib.ttf', 'calibri.ttf'],
+        'calibri:italic': ['calibrii.ttf', 'segoeuii.ttf', 'calibri.ttf'],
+        'calibri:bolditalic': ['calibriz.ttf', 'segoeuiz.ttf', 'calibrib.ttf', 'calibri.ttf'],
+      };
+
+      const styleSuffix =
+        bold && italic ? 'bolditalic' : bold ? 'bold' : italic ? 'italic' : 'regular';
+      const candidates = variantMap[`${family}:${styleSuffix}`] ?? ['arial.ttf'];
+      for (const file of candidates) {
+        const fullPath = path.join(winDir, 'Fonts', file);
+        try {
+          if (fsSync.existsSync(fullPath)) {
+            const buf = await fs.readFile(fullPath);
+            return new Uint8Array(buf);
+          }
+        } catch {
+          // tenta próxima
         }
-      } catch {
-        // tenta próxima
       }
+      return null;
     }
-    return null;
-  });
+  );
 
   // Auto-Recovery Nativo em Disco (%APPDATA%\pdf-studio-free\recovery)
   const recoveryDir = path.join(app.getPath('userData'), 'recovery');

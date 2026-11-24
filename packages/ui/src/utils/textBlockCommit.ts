@@ -2,8 +2,12 @@ import type {
   IPlatformAdapter,
   MetricFontFamily,
   PdfEditableTextBlock,
+  RichTextRun,
+  RichTextStyle,
 } from '@pdf-studio/platform-contracts';
 import {
+  type CommitStyledLine,
+  type CommitStyledSegment,
   mapMetricFamilyToStandardFont,
   sharedPdfEngine,
 } from '@pdf-studio/pdf-engine';
@@ -13,6 +17,12 @@ import {
   type DocumentTabState,
   usePdfStudioStore,
 } from '@pdf-studio/editor-core';
+import {
+  areRichStylesEqual,
+  cssFontStackForMetric,
+  normalizeRichRuns,
+  runsToPlainText,
+} from './richTextRuns';
 
 export function hexToRgbaTuple(hex: string, alpha = 255): [number, number, number, number] {
   const clean = hex.replace('#', '').trim();
@@ -25,102 +35,203 @@ export function hexToRgbaTuple(hex: string, alpha = 255): [number, number, numbe
   return [(num >> 16) & 255, (num >> 8) & 255, num & 255, alpha];
 }
 
-function cssFontForFamily(family: MetricFontFamily): string {
-  switch (family) {
-    case 'serif':
-      return '"Times New Roman", Times, Georgia, serif';
-    case 'mono':
-      return '"Courier New", Courier, Consolas, monospace';
-    case 'calibri':
-      return 'Calibri, "Segoe UI", Arial, sans-serif';
-    default:
-      return 'Arial, Helvetica, sans-serif';
-  }
+export function makeFontVariantKey(
+  family: MetricFontFamily,
+  bold: boolean,
+  italic: boolean
+): string {
+  return `${family}:${bold ? 'b' : 'r'}${italic ? 'i' : 'n'}`;
+}
+
+interface StyledToken {
+  text: string;
+  isWhitespace: boolean;
+  style: RichTextStyle;
+  widthPt: number;
 }
 
 /**
- * Quebra linhas com medição real em pontos PDF (via HTML5 Canvas 2D) respeitando
- * exatamente a NOVA largura expandida ou reduzida pelo usuário (boxWidthPt).
+ * Realiza quebra de linhas multi-estilo (RichTextRun[]) respeitando exatamente
+ * a largura expandida/ajustada do bloco (boxWidthPt), preservando Negrito, Itálico,
+ * Sublinhado, Fonte, Tamanho e Cor individualmente em cada palavra!
  */
-export function wrapTextToWidthPt(
-  text: string,
-  boxWidthPt: number,
-  fontSizePt: number,
-  fontFamily: MetricFontFamily,
-  isBold: boolean,
-  isItalic: boolean
-): string[] {
-  const safeMaxWidth = Math.max(24, boxWidthPt - 4);
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d');
-  if (ctx) {
-    const weight = isBold ? 'bold' : 'normal';
-    const style = isItalic ? 'italic' : 'normal';
-    ctx.font = `${style} ${weight} ${fontSizePt}px ${cssFontForFamily(fontFamily)}`;
-  }
+export function layoutRichRunsToStyledLines(
+  runs: RichTextRun[],
+  boxWidthPt: number
+): CommitStyledLine[] {
+  const safeMaxWidthPt = Math.max(24, boxWidthPt - 4);
+  const canvas =
+    typeof document !== 'undefined' ? document.createElement('canvas') : null;
+  const ctx = canvas?.getContext('2d') ?? null;
 
-  const measurePt = (str: string): number => {
-    if (!ctx) return str.length * fontSizePt * 0.52;
-    return ctx.measureText(str).width;
+  const measureTokenPt = (txt: string, st: RichTextStyle): number => {
+    if (!txt) return 0;
+    if (!ctx) return txt.length * st.fontSizePt * (st.isBold ? 0.56 : 0.52);
+    const weight = st.isBold ? 'bold' : 'normal';
+    const italic = st.isItalic ? 'italic' : 'normal';
+    ctx.font = `${italic} ${weight} ${st.fontSizePt}px ${cssFontStackForMetric(st.fontFamily)}`;
+    return ctx.measureText(txt).width;
   };
 
-  const paragraphs = text.replace(/\r\n/g, '\n').split('\n');
-  const outLines: string[] = [];
+  // 1. Divide runs em parágrafos explícitos por '\n'
+  const paragraphs: RichTextRun[][] = [[]];
+  for (const run of runs) {
+    const parts = run.text.replace(/\r\n/g, '\n').split('\n');
+    parts.forEach((part, idx) => {
+      if (idx > 0) {
+        paragraphs.push([]);
+      }
+      if (part.length > 0) {
+        paragraphs[paragraphs.length - 1].push({
+          text: part,
+          style: { ...run.style },
+        });
+      }
+    });
+  }
 
-  for (const para of paragraphs) {
-    if (!para.trim()) {
-      outLines.push('');
-      continue;
+  const finalLines: CommitStyledLine[] = [];
+
+  const tokensToCommitLine = (tokens: StyledToken[]): CommitStyledLine => {
+    // Remove espaços em branco residuais no fim da linha visual
+    let endIdx = tokens.length;
+    while (endIdx > 0 && tokens[endIdx - 1].isWhitespace) {
+      endIdx--;
     }
-    if (measurePt(para) <= safeMaxWidth) {
-      outLines.push(para);
-      continue;
-    }
-
-    const words = para.split(' ');
-    let currentLine = '';
-
-    for (const word of words) {
-      const candidate = currentLine ? `${currentLine} ${word}` : word;
-      if (measurePt(candidate) <= safeMaxWidth) {
-        currentLine = candidate;
+    const trimmed = tokens.slice(0, endIdx);
+    const mergedRuns: RichTextRun[] = [];
+    for (const tk of trimmed) {
+      const prev = mergedRuns[mergedRuns.length - 1];
+      if (prev && areRichStylesEqual(prev.style, tk.style)) {
+        prev.text += tk.text;
       } else {
-        if (currentLine) {
-          outLines.push(currentLine);
-          currentLine = '';
-        }
-        // Caso uma única palavra seja maior que a caixa estreita, divide por caracteres
-        if (measurePt(word) > safeMaxWidth) {
+        mergedRuns.push({ text: tk.text, style: { ...tk.style } });
+      }
+    }
+
+    const segments: CommitStyledSegment[] = mergedRuns.map((mr) => ({
+      text: mr.text,
+      fontKey: makeFontVariantKey(
+        mr.style.fontFamily,
+        mr.style.isBold,
+        mr.style.isItalic
+      ),
+      standardFontName: mapMetricFamilyToStandardFont(
+        mr.style.fontFamily,
+        mr.style.isBold,
+        mr.style.isItalic
+      ),
+      fontSizePt: mr.style.fontSizePt,
+      isUnderline: Boolean(mr.style.isUnderline),
+      rgba: hexToRgbaTuple(mr.style.colorHex, 255),
+    }));
+
+    return { segments };
+  };
+
+  for (const paraRuns of paragraphs) {
+    if (paraRuns.length === 0) {
+      finalLines.push({ segments: [] });
+      continue;
+    }
+
+    // Tokeniza mantendo palavras e espaços com o estilo exato de cada trecho
+    const tokens: StyledToken[] = [];
+    for (const r of paraRuns) {
+      const matches = r.text.match(/\S+|\s+/g) ?? [];
+      for (const m of matches) {
+        tokens.push({
+          text: m,
+          isWhitespace: /^\s+$/.test(m),
+          style: r.style,
+          widthPt: measureTokenPt(m, r.style),
+        });
+      }
+    }
+
+    let currentTokens: StyledToken[] = [];
+    let currentWidth = 0;
+
+    for (const tk of tokens) {
+      if (currentTokens.length === 0 && tk.isWhitespace) {
+        // Ignora espaço inicial após quebra automática de linha
+        continue;
+      }
+
+      if (currentWidth + tk.widthPt <= safeMaxWidthPt || currentTokens.length === 0) {
+        // Se uma palavra única for maior que a largura total da caixa, quebra por caracteres
+        if (!tk.isWhitespace && tk.widthPt > safeMaxWidthPt && currentTokens.length === 0) {
           let chunk = '';
-          for (const ch of word) {
-            if (measurePt(chunk + ch) > safeMaxWidth && chunk) {
-              outLines.push(chunk);
+          let chunkW = 0;
+          for (const ch of tk.text) {
+            const cw = measureTokenPt(ch, tk.style);
+            if (chunk && chunkW + cw > safeMaxWidthPt) {
+              finalLines.push(
+                tokensToCommitLine([
+                  { text: chunk, isWhitespace: false, style: tk.style, widthPt: chunkW },
+                ])
+              );
               chunk = ch;
+              chunkW = cw;
             } else {
               chunk += ch;
+              chunkW += cw;
             }
           }
-          currentLine = chunk;
+          if (chunk) {
+            currentTokens = [
+              { text: chunk, isWhitespace: false, style: tk.style, widthPt: chunkW },
+            ];
+            currentWidth = chunkW;
+          }
         } else {
-          currentLine = word;
+          currentTokens.push(tk);
+          currentWidth += tk.widthPt;
+        }
+      } else {
+        finalLines.push(tokensToCommitLine(currentTokens));
+        if (tk.isWhitespace) {
+          currentTokens = [];
+          currentWidth = 0;
+        } else {
+          currentTokens = [tk];
+          currentWidth = tk.widthPt;
         }
       }
     }
 
-    if (currentLine) {
-      outLines.push(currentLine);
+    if (currentTokens.length > 0) {
+      finalLines.push(tokensToCommitLine(currentTokens));
     }
   }
 
-  return outLines;
+  return finalLines;
 }
 
 export function createDraftFromTextBlock(block: PdfEditableTextBlock): ActiveTextBlockDraft {
+  const defaultStyle: RichTextStyle = {
+    fontFamily: block.fallbackFontFamily,
+    fontSizePt: block.fontSizePt,
+    isBold: Boolean(block.isBold),
+    isItalic: Boolean(block.isItalic),
+    isUnderline: false,
+    colorHex: block.colorHex,
+  };
+
+  const initialRuns =
+    block.runs && block.runs.length > 0
+      ? normalizeRichRuns(block.runs, defaultStyle)
+      : [{ text: block.originalText, style: { ...defaultStyle } }];
+
   return {
     blockId: block.id,
     sourceBlock: block,
     pageIndex: block.pageIndex,
-    text: block.originalText,
+    text: runsToPlainText(initialRuns),
+    runs: initialRuns,
+    defaultStyle,
+    selection: { start: 0, end: 0 },
+    formatRevision: 1,
     rect: { ...block.rect },
     fontSizePt: block.fontSizePt,
     lineHeightPt: block.lineHeightPt,
@@ -145,23 +256,38 @@ export async function commitTextBlockDraftToPdf(params: {
   const { tab, block, draft, platform, deleteBlockOnly } = params;
   const store = usePdfStudioStore.getState();
 
-  const finalText = deleteBlockOnly ? '' : draft.text;
+  const plainText = deleteBlockOnly ? '' : runsToPlainText(draft.runs);
   const rectChanged =
     Math.abs(draft.rect.left - block.rect.left) > 0.5 ||
     Math.abs(draft.rect.right - block.rect.right) > 0.5 ||
     Math.abs(draft.rect.bottom - block.rect.bottom) > 0.5 ||
     Math.abs(draft.rect.top - block.rect.top) > 0.5;
-  const styleChanged =
-    Math.abs(draft.fontSizePt - block.fontSizePt) > 0.2 ||
+
+  const origRuns = block.runs ?? [
+    {
+      text: block.originalText,
+      style: {
+        fontFamily: block.fallbackFontFamily,
+        fontSizePt: block.fontSizePt,
+        isBold: Boolean(block.isBold),
+        isItalic: Boolean(block.isItalic),
+        isUnderline: false,
+        colorHex: block.colorHex,
+      },
+    },
+  ];
+  const runsChanged =
+    draft.runs.length !== origRuns.length ||
+    draft.runs.some(
+      (r, idx) =>
+        r.text !== origRuns[idx]?.text || !areRichStylesEqual(r.style, origRuns[idx].style)
+    );
+  const blockPropsChanged =
     Math.abs(draft.lineHeightPt - block.lineHeightPt) > 0.2 ||
-    draft.fontFamily !== block.fallbackFontFamily ||
-    draft.isBold !== Boolean(block.isBold) ||
-    draft.isItalic !== Boolean(block.isItalic) ||
     draft.alignment !== (block.alignment ?? 'left') ||
-    draft.colorHex.toLowerCase() !== block.colorHex.toLowerCase() ||
     draft.opaqueBackground;
 
-  if (!deleteBlockOnly && finalText === block.originalText && !rectChanged && !styleChanged) {
+  if (!deleteBlockOnly && plainText === block.originalText && !rectChanged && !runsChanged && !blockPropsChanged) {
     store.updateTabState(tab.tabId, {
       activeEditingBlockId: null,
       activeTextBlockDraft: null,
@@ -170,34 +296,54 @@ export async function commitTextBlockDraftToPdf(params: {
   }
 
   const boxWidthPt = Math.max(24, draft.rect.right - draft.rect.left);
-  const wrappedLines = deleteBlockOnly
+  const styledLines = deleteBlockOnly
     ? []
-    : wrapTextToWidthPt(
-        finalText,
-        boxWidthPt,
-        draft.fontSizePt,
-        draft.fontFamily,
-        draft.isBold,
-        draft.isItalic
-      );
+    : layoutRichRunsToStyledLines(draft.runs, boxWidthPt);
 
-  const fontBytes = await platform.fontRepository.loadFallbackFontBytes(draft.fontFamily);
-  const stdFont = mapMetricFamilyToStandardFont(
-    draft.fontFamily,
-    draft.isBold,
-    draft.isItalic
+  // Carrega os binários TrueType nativos para todas as variações (família + bold + italic) usadas nos trechos!
+  const fontBinariesByKey: Record<string, Uint8Array | null> = {};
+  const uniqueStyles = new Map<
+    string,
+    { family: MetricFontFamily; bold: boolean; italic: boolean }
+  >();
+  for (const r of draft.runs) {
+    const key = makeFontVariantKey(r.style.fontFamily, r.style.isBold, r.style.isItalic);
+    if (!uniqueStyles.has(key)) {
+      uniqueStyles.set(key, {
+        family: r.style.fontFamily,
+        bold: r.style.isBold,
+        italic: r.style.isItalic,
+      });
+    }
+  }
+  await Promise.all(
+    Array.from(uniqueStyles.entries()).map(async ([key, spec]) => {
+      fontBinariesByKey[key] = await platform.fontRepository.loadFallbackFontBytes(
+        spec.family,
+        { bold: spec.bold, italic: spec.italic }
+      );
+    })
   );
 
-  // Calcula linha de base superior a partir do topo da caixa (editada/movida ou original)
+  const maxFirstLineFontPt =
+    styledLines[0]?.segments.reduce(
+      (m, s) => Math.max(m, s.fontSizePt),
+      draft.defaultStyle.fontSizePt
+    ) ?? draft.defaultStyle.fontSizePt;
+
   const topMoved = Math.abs(draft.rect.top - block.rect.top) > 0.5;
-  const sizeChanged = Math.abs(draft.fontSizePt - block.fontSizePt) > 0.2;
+  const firstSizeChanged = Math.abs(maxFirstLineFontPt - block.fontSizePt) > 0.2;
   const topBaselineYPt =
-    !topMoved && !sizeChanged && block.lines[0]?.baselineYPt
+    !topMoved && !firstSizeChanged && block.lines[0]?.baselineYPt
       ? block.lines[0].baselineYPt
-      : draft.rect.top - draft.fontSizePt * 0.86;
+      : draft.rect.top - maxFirstLineFontPt * 0.86;
 
   const prevBytes = new Uint8Array(tab.bytes);
-  const rgba = hexToRgbaTuple(draft.colorHex, 255);
+  const stdDefaultFont = mapMetricFamilyToStandardFont(
+    draft.defaultStyle.fontFamily,
+    draft.defaultStyle.isBold,
+    draft.defaultStyle.isItalic
+  );
   const backgroundFillRgba = draft.opaqueBackground
     ? hexToRgbaTuple(draft.backgroundColorHex || '#FFFFFF', 255)
     : null;
@@ -206,28 +352,32 @@ export async function commitTextBlockDraftToPdf(params: {
     docId: tab.docId,
     pageIndex: draft.pageIndex,
     oldObjectIndices: block.objectIndices,
-    lines: wrappedLines,
+    lines: styledLines.map((sl) => sl.segments.map((s) => s.text).join('')),
+    styledLines,
+    fontBinariesByKey,
     style: {
       xPt: draft.rect.left,
       boxWidthPt,
       boxBottomYPt: Math.min(
         draft.rect.bottom,
-        topBaselineYPt - Math.max(1, wrappedLines.length) * draft.lineHeightPt
+        topBaselineYPt - Math.max(1, styledLines.length) * draft.lineHeightPt
       ),
       boxTopYPt: draft.rect.top,
       topBaselineYPt,
       lineHeightPt: draft.lineHeightPt,
-      fontSizePt: draft.fontSizePt,
+      fontSizePt: draft.defaultStyle.fontSizePt,
       alignment: draft.alignment,
-      rgba,
+      rgba: hexToRgbaTuple(draft.defaultStyle.colorHex, 255),
       backgroundFillRgba,
-      standardFontName: stdFont,
-      fontBytes,
+      standardFontName: stdDefaultFont,
+      fontBytes: null,
     },
   });
 
   const cmd = new BinaryDocumentMutationCommand(
-    deleteBlockOnly ? 'Excluir bloco de texto do PDF' : 'Editar/Redimensionar bloco de texto',
+    deleteBlockOnly
+      ? 'Excluir bloco de texto do PDF'
+      : 'Editar bloco de texto com formatação rica',
     tab.tabId,
     prevBytes,
     committed.bytes,
@@ -243,7 +393,7 @@ export async function commitTextBlockDraftToPdf(params: {
   store.showToast(
     deleteBlockOnly
       ? 'Bloco de texto removido da página.'
-      : 'Bloco de texto atualizado com as novas dimensões e estilo!',
+      : 'Texto atualizado preservando formatação individual dos trechos!',
     'success'
   );
 }

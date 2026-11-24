@@ -99,6 +99,20 @@ export interface PdfTextLine {
 
 export type MetricFontFamily = 'sans' | 'serif' | 'mono' | 'calibri';
 
+export interface RichTextStyle {
+  fontFamily: MetricFontFamily;
+  fontSizePt: number;
+  isBold: boolean;
+  isItalic: boolean;
+  isUnderline: boolean;
+  colorHex: string;
+}
+
+export interface RichTextRun {
+  text: string;
+  style: RichTextStyle;
+}
+
 export interface PdfEditableTextBlock {
   id: string;
   pageIndex: number;
@@ -115,6 +129,7 @@ export interface PdfEditableTextBlock {
   rgba: [number, number, number, number];
   alignment: 'left' | 'center' | 'right';
   originalText: string;
+  runs?: RichTextRun[];
   editedText?: string;
   isBold?: boolean;
   isItalic?: boolean;

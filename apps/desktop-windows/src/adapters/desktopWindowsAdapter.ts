@@ -27,7 +27,11 @@ interface DesktopBridge {
     suggestedName: string;
   }) => Promise<boolean>;
   revealInExplorer: (filePath: string) => Promise<void>;
-  loadSystemFont: (family: MetricFontFamily) => Promise<Uint8Array | null>;
+  loadSystemFont: (payload: {
+    family: MetricFontFamily;
+    bold?: boolean;
+    italic?: boolean;
+  }) => Promise<Uint8Array | null>;
   saveRecovery: (snap: RecoverySnapshot) => Promise<void>;
   removeRecovery: (tabId: string) => Promise<void>;
   listRecovery: () => Promise<RecoverableSessionEntry[]>;
@@ -159,9 +163,16 @@ export function createDesktopWindowsAdapter(): IPlatformAdapter {
           { name: 'Calibri (Windows Nativa)', family: 'calibri' },
         ];
       },
-      async loadFallbackFontBytes(family: MetricFontFamily): Promise<Uint8Array | null> {
+      async loadFallbackFontBytes(
+        family: MetricFontFamily,
+        options?: { bold?: boolean; italic?: boolean }
+      ): Promise<Uint8Array | null> {
         if (bridge) {
-          return await bridge.loadSystemFont(family);
+          return await bridge.loadSystemFont({
+            family,
+            bold: options?.bold,
+            italic: options?.italic,
+          });
         }
         return null;
       },

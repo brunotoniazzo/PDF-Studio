@@ -12,6 +12,7 @@ import type {
   PdfRect,
   PdfSignatureInfo,
   PdfTextLine,
+  RichTextRun,
   SearchMatch,
 } from '@pdf-studio/platform-contracts';
 import {
@@ -1104,6 +1105,7 @@ function analyzeEditableTextBlocks(
     // Agrupa fragmentos na mesma linha: |dy| <= 0.35 * fontSize e dx < 2.5 * spaceWidth
     interface GroupedLine {
       fragments: RawFragment[];
+      runs: RichTextRun[];
       rect: PdfRect;
       baselineYPt: number;
       fontSizePt: number;
@@ -1116,13 +1118,29 @@ function analyzeEditableTextBlocks(
       text: string;
     }
 
+    const fragToRun = (f: RawFragment, prefix = ''): RichTextRun => {
+      const lf = f.cleanFontName.toLowerCase();
+      return {
+        text: prefix + f.text,
+        style: {
+          fontFamily: f.fallbackFontFamily,
+          fontSizePt: f.fontSizePt,
+          isBold: lf.includes('bold') || lf.includes('black'),
+          isItalic: lf.includes('italic') || lf.includes('oblique'),
+          isUnderline: false,
+          colorHex: f.colorHex,
+        },
+      };
+    };
+
     const lines: GroupedLine[] = [];
     for (const frag of fragments) {
       const spaceWidth = frag.fontSizePt * 0.32;
       const lastLine = lines[lines.length - 1];
       if (
         lastLine &&
-        Math.abs(lastLine.baselineYPt - frag.rect.bottom) <= frag.fontSizePt * 0.35 &&
+        Math.abs(lastLine.baselineYPt - frag.rect.bottom) <=
+          Math.max(lastLine.fontSizePt, frag.fontSizePt) * 0.4 &&
         frag.rect.left - lastLine.rect.right < 2.5 * spaceWidth * 3 &&
         frag.rect.left >= lastLine.rect.left - spaceWidth
       ) {
@@ -1131,8 +1149,10 @@ function analyzeEditableTextBlocks(
           gap > spaceWidth * 0.45 &&
           !lastLine.text.endsWith(' ') &&
           !frag.text.startsWith(' ');
-        lastLine.text += (needsSpace ? ' ' : '') + frag.text;
+        const sep = needsSpace ? ' ' : '';
+        lastLine.text += sep + frag.text;
         lastLine.fragments.push(frag);
+        lastLine.runs.push(fragToRun(frag, sep));
         lastLine.rect = {
           left: Math.min(lastLine.rect.left, frag.rect.left),
           bottom: Math.min(lastLine.rect.bottom, frag.rect.bottom),
@@ -1142,6 +1162,7 @@ function analyzeEditableTextBlocks(
       } else {
         lines.push({
           fragments: [frag],
+          runs: [fragToRun(frag)],
           rect: { ...frag.rect },
           baselineYPt: frag.rect.bottom,
           fontSizePt: frag.fontSizePt,
@@ -1156,7 +1177,7 @@ function analyzeEditableTextBlocks(
       }
     }
 
-    // Agrupa linhas consecutivas em blocos de parágrafo (entrelinha <= 1.6 * fontSize, mesma família/cor)
+    // Agrupa linhas consecutivas em blocos de parágrafo preservando runs individuais por palavra/trecho
     const blocks: PdfEditableTextBlock[] = [];
     for (const line of lines) {
       const prevBlock = blocks[blocks.length - 1];
@@ -1169,8 +1190,7 @@ function analyzeEditableTextBlocks(
         prevBlock &&
         prevLine &&
         prevBlock.fallbackFontFamily === line.fallbackFontFamily &&
-        prevBlock.colorHex === line.colorHex &&
-        Math.abs(prevBlock.fontSizePt - line.fontSizePt) <= 1.2 &&
+        Math.abs(prevBlock.fontSizePt - line.fontSizePt) <= 2.2 &&
         baselineGap > 0 &&
         baselineGap <= line.fontSizePt * 1.65 &&
         alignedLeft
@@ -1180,6 +1200,9 @@ function analyzeEditableTextBlocks(
           rect: line.rect,
           baselineYPt: line.baselineYPt,
         });
+        const prevRuns = prevBlock.runs ?? [];
+        const fallbackStyle = prevRuns[prevRuns.length - 1]?.style ?? line.runs[0].style;
+        prevBlock.runs = [...prevRuns, { text: '\n', style: fallbackStyle }, ...line.runs];
         prevBlock.objectIndices.push(...line.fragments.map((f) => f.objectIndex));
         prevBlock.rect = {
           left: Math.min(prevBlock.rect.left, line.rect.left),
@@ -1205,6 +1228,7 @@ function analyzeEditableTextBlocks(
               baselineYPt: line.baselineYPt,
             },
           ],
+          runs: [...line.runs],
           objectIndices: line.fragments.map((f) => f.objectIndex),
           rawFontName: line.rawFontName,
           cleanFontName: line.cleanFontName,
@@ -1271,7 +1295,40 @@ function commitEditedTextBlockInWorker(
   const pagePtr = mod.FPDF_LoadPage(handle.docPtr, payload.pageIndex);
   if (!pagePtr) throw new Error(`Falha ao abrir página ${payload.pageIndex}`);
 
-  let fontBufPtr = 0;
+  const allocatedFontBuffers: number[] = [];
+  const fontPtrCache = new Map<string, number>();
+
+  const resolvePdfiumFont = (fontKey: string, standardFontName: string): number => {
+    const cacheId = `${fontKey}::${standardFontName}`;
+    if (fontPtrCache.has(cacheId)) return fontPtrCache.get(cacheId)!;
+
+    let ptr = 0;
+    const customBytes =
+      payload.fontBinariesByKey?.[fontKey] ??
+      (fontKey === 'default' ? payload.style.fontBytes : null);
+
+    if (customBytes && customBytes.byteLength > 0) {
+      const fBuf = malloc(mod, customBytes.byteLength);
+      allocatedFontBuffers.push(fBuf);
+      heapU8(mod).set(customBytes, fBuf);
+      ptr = mod.FPDFText_LoadFont(
+        handle.docPtr,
+        fBuf,
+        customBytes.byteLength,
+        FPDF_FONT_TRUETYPE,
+        true
+      );
+    }
+    if (!ptr) {
+      ptr = mod.FPDFText_LoadStandardFont(
+        handle.docPtr,
+        standardFontName || 'Helvetica'
+      );
+    }
+    fontPtrCache.set(cacheId, ptr);
+    return ptr;
+  };
+
   try {
     // 1. Remove objetos antigos em ordem decrescente de índice (invariante obrigatória!)
     const sortedDesc = [...new Set(payload.oldObjectIndices)].sort((a, b) => b - a);
@@ -1305,54 +1362,93 @@ function commitEditedTextBlockInWorker(
       }
     }
 
-    // 3. Carrega fonte TrueType CID se houver bytes .ttf, ou fonte padrão métrica
-    let fontPtr = 0;
-    if (payload.style.fontBytes && payload.style.fontBytes.byteLength > 0) {
-      fontBufPtr = malloc(mod, payload.style.fontBytes.byteLength);
-      heapU8(mod).set(payload.style.fontBytes, fontBufPtr);
-      fontPtr = mod.FPDFText_LoadFont(
-        handle.docPtr,
-        fontBufPtr,
-        payload.style.fontBytes.byteLength,
-        FPDF_FONT_TRUETYPE,
-        true // cid = true para UTF-16/português completo
-      );
-    }
-    if (!fontPtr) {
-      fontPtr = mod.FPDFText_LoadStandardFont(
-        handle.docPtr,
-        payload.style.standardFontName || 'Helvetica'
-      );
-    }
+    // 3. Normaliza linhas para o formato multi-segmento (suporta tanto styledLines rico quanto lines simples)
+    const effectiveStyledLines =
+      payload.styledLines && payload.styledLines.length > 0
+        ? payload.styledLines
+        : payload.lines.map((lineText) => ({
+            segments: lineText
+              ? [
+                  {
+                    text: lineText,
+                    fontKey: 'default',
+                    standardFontName: payload.style.standardFontName || 'Helvetica',
+                    fontSizePt: payload.style.fontSizePt,
+                    isUnderline: false,
+                    rgba: payload.style.rgba,
+                  },
+                ]
+              : [],
+          }));
 
-    // 4. Insere um novo FPDF_PAGEOBJECT por linha recalculada (com suporte a alinhamento na nova largura!)
-    const [r, g, b, a] = payload.style.rgba;
+    // 4. Insere FPDF_PAGEOBJECT individual por trecho formatado na mesma linha de base!
     const measureBoundsPtr = malloc(mod, 16);
     try {
-      payload.lines.forEach((lineText, i) => {
-        if (!lineText) return;
-        const textObj = fontPtr
-          ? mod.FPDFPageObj_CreateTextObj(handle.docPtr, fontPtr, payload.style.fontSizePt)
-          : mod.FPDFPageObj_NewTextObj(
-              handle.docPtr,
-              payload.style.standardFontName || 'Helvetica',
-              payload.style.fontSizePt
-            );
-        if (!textObj) return;
+      let currentBaselineY = payload.style.topBaselineYPt;
 
-        const utf16Ptr = encodeUtf16LE(mod, lineText);
-        try {
-          mod.FPDFText_SetText(textObj, utf16Ptr);
-        } finally {
-          free(mod, utf16Ptr);
+      effectiveStyledLines.forEach((lineObj, lineIdx) => {
+        if (lineIdx > 0) {
+          const maxFsOnLine = lineObj.segments.reduce(
+            (m, s) => Math.max(m, s.fontSizePt),
+            payload.style.fontSizePt
+          );
+          const stepY = Math.max(payload.style.lineHeightPt, maxFsOnLine * 1.2);
+          currentBaselineY -= stepY;
+        }
+        if (lineObj.segments.length === 0) return;
+
+        interface PreparedSeg {
+          textObj: number;
+          inkLeft: number;
+          advancePt: number;
+          fontSizePt: number;
+          isUnderline: boolean;
+          rgba: [number, number, number, number];
         }
 
-        mod.FPDFPageObj_SetFillColor(textObj, r, g, b, a);
+        const prepared: PreparedSeg[] = [];
+        let totalLineWidthPt = 0;
 
-        let lineXPt = payload.style.xPt;
-        const align = payload.style.alignment ?? 'left';
-        const boxW = payload.style.boxWidthPt ?? 0;
-        if (align !== 'left' && boxW > 0) {
+        for (const seg of lineObj.segments) {
+          if (!seg.text) continue;
+
+          // Caso o segmento seja apenas espaços em branco, soma apenas o avanço tipográfico
+          if (seg.text.trim().length === 0) {
+            const spaceAdv = seg.text.length * (seg.fontSizePt * 0.28);
+            totalLineWidthPt += spaceAdv;
+            prepared.push({
+              textObj: 0,
+              inkLeft: 0,
+              advancePt: spaceAdv,
+              fontSizePt: seg.fontSizePt,
+              isUnderline: Boolean(seg.isUnderline),
+              rgba: seg.rgba,
+            });
+            continue;
+          }
+
+          const fontPtr = resolvePdfiumFont(seg.fontKey, seg.standardFontName);
+          const textObj = fontPtr
+            ? mod.FPDFPageObj_CreateTextObj(handle.docPtr, fontPtr, seg.fontSizePt)
+            : mod.FPDFPageObj_NewTextObj(
+                handle.docPtr,
+                seg.standardFontName || 'Helvetica',
+                seg.fontSizePt
+              );
+          if (!textObj) continue;
+
+          const utf16Ptr = encodeUtf16LE(mod, seg.text);
+          try {
+            mod.FPDFText_SetText(textObj, utf16Ptr);
+          } finally {
+            free(mod, utf16Ptr);
+          }
+
+          const [sr, sg, sb, sa] = seg.rgba;
+          mod.FPDFPageObj_SetFillColor(textObj, sr, sg, sb, sa);
+
+          let inkLeft = 0;
+          let inkRight = seg.text.trim().length * seg.fontSizePt * 0.5;
           if (
             mod.FPDFPageObj_GetBounds(
               textObj,
@@ -1363,22 +1459,66 @@ function commitEditedTextBlockInWorker(
             )
           ) {
             const mdv = view(mod);
-            const objW = Math.max(
-              0,
-              mdv.getFloat32(measureBoundsPtr + 8, true) -
-                mdv.getFloat32(measureBoundsPtr, true)
-            );
-            if (align === 'center') {
-              lineXPt = payload.style.xPt + Math.max(0, (boxW - objW) / 2);
-            } else if (align === 'right') {
-              lineXPt = payload.style.xPt + Math.max(0, boxW - objW);
-            }
+            inkLeft = Math.max(0, mdv.getFloat32(measureBoundsPtr, true));
+            inkRight = Math.max(inkLeft, mdv.getFloat32(measureBoundsPtr + 8, true));
           }
+
+          const trailingSpaces = seg.text.length - seg.text.trimEnd().length;
+          // Em matriz identidade (0,0), inkRight já inclui os espaços à esquerda do segmento!
+          const advancePt = inkRight + trailingSpaces * (seg.fontSizePt * 0.28);
+          totalLineWidthPt += advancePt;
+
+          prepared.push({
+            textObj,
+            inkLeft,
+            advancePt,
+            fontSizePt: seg.fontSizePt,
+            isUnderline: Boolean(seg.isUnderline),
+            rgba: seg.rgba,
+          });
         }
 
-        const yPos = payload.style.topBaselineYPt - i * payload.style.lineHeightPt;
-        mod.FPDFPageObj_Transform(textObj, 1, 0, 0, 1, lineXPt, yPos);
-        mod.FPDFPage_InsertObject(pagePtr, textObj);
+        const align = payload.style.alignment ?? 'left';
+        const boxW = payload.style.boxWidthPt ?? 0;
+        let cursorXPt = payload.style.xPt;
+        if (align === 'center' && boxW > 0) {
+          cursorXPt = payload.style.xPt + Math.max(0, (boxW - totalLineWidthPt) / 2);
+        } else if (align === 'right' && boxW > 0) {
+          cursorXPt = payload.style.xPt + Math.max(0, boxW - totalLineWidthPt);
+        }
+
+        for (const item of prepared) {
+          if (item.textObj) {
+            mod.FPDFPageObj_Transform(
+              item.textObj,
+              1,
+              0,
+              0,
+              1,
+              cursorXPt,
+              currentBaselineY
+            );
+            mod.FPDFPage_InsertObject(pagePtr, item.textObj);
+          }
+
+          if (item.isUnderline && item.advancePt > 0.5) {
+            const ulThickness = Math.max(0.75, item.fontSizePt * 0.07);
+            const ulObj = mod.FPDFPageObj_CreateNewRect(
+              cursorXPt + item.inkLeft,
+              currentBaselineY - item.fontSizePt * 0.14,
+              Math.max(1, item.advancePt - item.inkLeft),
+              ulThickness
+            );
+            if (ulObj) {
+              const [ur, ug, ub, ua] = item.rgba;
+              mod.FPDFPageObj_SetFillColor(ulObj, ur, ug, ub, ua);
+              mod.FPDFPath_SetDrawMode(ulObj, 1, false);
+              mod.FPDFPage_InsertObject(pagePtr, ulObj);
+            }
+          }
+
+          cursorXPt += item.advancePt;
+        }
       });
     } finally {
       free(mod, measureBoundsPtr);
@@ -1390,7 +1530,9 @@ function commitEditedTextBlockInWorker(
       throw new Error('FPDFPage_GenerateContent falhou ao gravar edição de texto.');
     }
   } finally {
-    if (fontBufPtr) free(mod, fontBufPtr);
+    for (const ptr of allocatedFontBuffers) {
+      free(mod, ptr);
+    }
     mod.FPDF_ClosePage(pagePtr);
   }
 

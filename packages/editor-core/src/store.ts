@@ -17,6 +17,8 @@ import type {
   PdfSignatureInfo,
   RecentDocumentEntry,
   RecoverableSessionEntry,
+  RichTextRun,
+  RichTextStyle,
   RightInspectorFlow,
   SearchMatch,
   ViewLayoutMode,
@@ -33,6 +35,10 @@ export interface ActiveTextBlockDraft {
   sourceBlock: PdfEditableTextBlock;
   pageIndex: number;
   text: string;
+  runs: RichTextRun[];
+  defaultStyle: RichTextStyle;
+  selection: { start: number; end: number };
+  formatRevision: number;
   rect: PdfRect;
   fontSizePt: number;
   lineHeightPt: number;
