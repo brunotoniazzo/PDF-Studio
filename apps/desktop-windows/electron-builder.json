@@ -2,7 +2,7 @@
   "appId": "com.pdfstudio.desktop",
   "productName": "PDF Studio",
   "electronVersion": "33.4.11",
-  "electronDist": "../../node_modules/electron/dist",
+  "electronDist": ".electron-dist",
   "electronLanguages": ["pt-BR", "en-US"],
   "compression": "maximum",
   "npmRebuild": false,
@@ -14,6 +14,16 @@
     "dist-electron/**/*",
     "package.json",
     "!**/node_modules/**/*"
+  ],
+  "asarUnpack": [
+    "dist/icon.ico",
+    "dist/icon.png"
+  ],
+  "extraResources": [
+    {
+      "from": "public/icon.ico",
+      "to": "icon.ico"
+    }
   ],
   "fileAssociations": [
     {
@@ -36,6 +46,9 @@
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
-    "shortcutName": "PDF Studio"
+    "shortcutName": "PDF Studio",
+    "installerIcon": "public/icon.ico",
+    "uninstallerIcon": "public/icon.ico",
+    "installerHeaderIcon": "public/icon.ico"
   }
 }

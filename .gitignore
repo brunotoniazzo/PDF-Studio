@@ -2,6 +2,7 @@ node_modules/
 dist/
 dist-ts/
 dist-electron/
+apps/desktop-windows/.electron-dist/
 apps/desktop-windows/release/win-unpacked/
 apps/desktop-windows/release/__uninstaller*
 apps/desktop-windows/release/*.blockmap

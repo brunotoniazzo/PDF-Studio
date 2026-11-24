@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, shell } from 'electron';
 import * as fs from 'node:fs/promises';
 import * as fsSync from 'node:fs';
 import * as path from 'node:path';
@@ -64,6 +64,35 @@ async function sendPdfPathToRenderer(filePath: string): Promise<void> {
   }
 }
 
+const APP_USER_MODEL_ID = 'com.pdfstudio.desktop';
+if (process.platform === 'win32') {
+  app.setAppUserModelId(APP_USER_MODEL_ID);
+}
+
+function resolveAppWindowIcon() {
+  const candidates = [
+    ...(process.resourcesPath
+      ? [
+          path.join(process.resourcesPath, 'icon.ico'),
+          path.join(process.resourcesPath, 'app.asar.unpacked/dist/icon.ico'),
+          path.join(process.resourcesPath, 'app.asar.unpacked/dist/icon.png'),
+        ]
+      : []),
+    path.join(__dirname, '../../app.asar.unpacked/dist/icon.ico'),
+    path.join(__dirname, '../dist/icon.ico'),
+    path.join(__dirname, '../../app.asar.unpacked/dist/icon.png'),
+    path.join(__dirname, '../dist/icon.png'),
+    path.join(__dirname, '../public/icon.ico'),
+  ];
+  for (const candidate of candidates) {
+    if (fsSync.existsSync(candidate)) {
+      const img = nativeImage.createFromPath(candidate);
+      if (!img.isEmpty()) return img;
+    }
+  }
+  return undefined;
+}
+
 // Instância Única (Single Instance no Windows):
 // Abrir um segundo PDF no Explorer envia o arquivo para a janela já aberta!
 const gotLock = app.requestSingleInstanceLock();
@@ -84,6 +113,7 @@ if (!gotLock) {
 
 async function createMainWindow() {
   const saved = loadWindowBounds();
+  const appIcon = resolveAppWindowIcon();
   mainWindow = new BrowserWindow({
     width: saved.width,
     height: saved.height,
@@ -94,13 +124,17 @@ async function createMainWindow() {
     frame: false, // Janela sem bordas com Custom Titlebar Windows 11
     backgroundColor: '#F8FAFC',
     title: 'PDF Studio',
-    icon: path.join(__dirname, '../dist/icon.png'),
+    icon: appIcon,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
+
+  if (appIcon && process.platform === 'win32') {
+    mainWindow.setIcon(appIcon);
+  }
 
   if (saved.isMaximized) {
     mainWindow.maximize();
