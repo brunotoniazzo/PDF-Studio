@@ -1017,6 +1017,8 @@ function analyzeEditableTextBlocks(
     fallbackFontFamily: ReturnType<typeof resolveMetricFallbackFamily>;
     rgba: [number, number, number, number];
     colorHex: string;
+    isBoldHint: boolean;
+    isItalicHint: boolean;
   }
 
   try {
@@ -1161,18 +1163,20 @@ function analyzeEditableTextBlocks(
       const top = dv.getFloat32(boundsPtr + 12, true);
       if (right <= left || top <= bottom) continue;
 
-      let fontSizePt = Math.max(8, Math.round((top - bottom) * 0.85 * 10) / 10);
+      let fontSizePt = Math.max(6, Math.round((top - bottom) * 0.85 * 20) / 20);
       if (mod.FPDFTextObj_GetFontSize(objPtr, fontSizePtr)) {
         const fs = dv.getFloat32(fontSizePtr, true);
-        if (fs > 1 && fs < 300) {
+        if (fs > 0.01 && fs < 1000) {
           const matrixPtr = malloc(mod, 24);
           try {
             if (mod.FPDFPageObj_GetMatrix(objPtr, matrixPtr)) {
               const mdv = view(mod);
-              const d = Math.abs(mdv.getFloat32(matrixPtr + 12, true)) || 1;
-              fontSizePt = Math.round(fs * d * 10) / 10;
+              const c = mdv.getFloat32(matrixPtr + 8, true);
+              const d = mdv.getFloat32(matrixPtr + 12, true);
+              const scaleY = Math.hypot(c, d) || 1;
+              fontSizePt = Math.round(fs * scaleY * 20) / 20;
             } else {
-              fontSizePt = Math.round(fs * 10) / 10;
+              fontSizePt = Math.round(fs * 20) / 20;
             }
           } finally {
             free(mod, matrixPtr);
@@ -1181,6 +1185,9 @@ function analyzeEditableTextBlocks(
       }
 
       let rawFontName = 'Helvetica';
+      let familyFontName = '';
+      let fontWeight = -1;
+      let fontFlags = 0;
       const fontPtr = mod.FPDFTextObj_GetFont(objPtr);
       if (fontPtr) {
         const nameLen = mod.FPDFFont_GetBaseFontName(fontPtr, 0, 0);
@@ -1194,10 +1201,49 @@ function analyzeEditableTextBlocks(
             free(mod, nameBuf);
           }
         }
+        const famLen = mod.FPDFFont_GetFamilyName(fontPtr, 0, 0);
+        if (famLen > 1) {
+          const famBuf = malloc(mod, famLen);
+          try {
+            mod.FPDFFont_GetFamilyName(fontPtr, famBuf, famLen);
+            const bytes = heapU8(mod).subarray(famBuf, famBuf + famLen - 1);
+            familyFontName = new TextDecoder('utf-8').decode(bytes) || '';
+          } finally {
+            free(mod, famBuf);
+          }
+        }
+        fontWeight = mod.FPDFFont_GetWeight(fontPtr);
+        fontFlags = mod.FPDFFont_GetFlags(fontPtr);
       }
 
       const { cleanName, isSubset } = stripSubsetFontPrefix(rawFontName);
-      const fallbackFontFamily = resolveMetricFallbackFamily(cleanName);
+      let fallbackFontFamily = resolveMetricFallbackFamily(cleanName);
+      if (fallbackFontFamily === 'sans' && familyFontName) {
+        const famResolved = resolveMetricFallbackFamily(familyFontName);
+        if (famResolved !== 'sans') {
+          fallbackFontFamily = famResolved;
+        }
+      }
+      if (fallbackFontFamily === 'sans' && fontFlags > 0) {
+        if ((fontFlags & 0x01) !== 0) {
+          fallbackFontFamily = 'mono';
+        } else if ((fontFlags & 0x02) !== 0) {
+          fallbackFontFamily = 'serif';
+        }
+      }
+      const lowerClean = `${cleanName} ${familyFontName}`.toLowerCase();
+      const isBoldHint =
+        lowerClean.includes('bold') ||
+        lowerClean.includes('black') ||
+        lowerClean.includes('heavy') ||
+        lowerClean.includes('demi') ||
+        lowerClean.includes('semibold') ||
+        fontWeight >= 600;
+      const isItalicHint =
+        lowerClean.includes('italic') ||
+        lowerClean.includes('oblique') ||
+        lowerClean.includes('slant') ||
+        (fontFlags > 0 && (fontFlags & 0x40) !== 0);
 
       let rgba: [number, number, number, number] = [20, 24, 31, 255];
       if (
@@ -1286,6 +1332,8 @@ function analyzeEditableTextBlocks(
         fallbackFontFamily,
         rgba,
         colorHex,
+        isBoldHint,
+        isItalicHint,
       });
     }
 
@@ -1312,22 +1360,21 @@ function analyzeEditableTextBlocks(
       colorHex: string;
       rgba: [number, number, number, number];
       text: string;
+      isBoldHint: boolean;
+      isItalicHint: boolean;
     }
 
-    const fragToRun = (f: RawFragment, prefix = ''): RichTextRun => {
-      const lf = f.cleanFontName.toLowerCase();
-      return {
-        text: prefix + f.text,
-        style: {
-          fontFamily: f.fallbackFontFamily,
-          fontSizePt: f.fontSizePt,
-          isBold: lf.includes('bold') || lf.includes('black'),
-          isItalic: lf.includes('italic') || lf.includes('oblique'),
-          isUnderline: false,
-          colorHex: f.colorHex,
-        },
-      };
-    };
+    const fragToRun = (f: RawFragment, prefix = ''): RichTextRun => ({
+      text: prefix + f.text,
+      style: {
+        fontFamily: f.fallbackFontFamily,
+        fontSizePt: f.fontSizePt,
+        isBold: f.isBoldHint,
+        isItalic: f.isItalicHint,
+        isUnderline: false,
+        colorHex: f.colorHex,
+      },
+    });
 
     const lines: GroupedLine[] = [];
     for (const frag of fragments) {
@@ -1355,14 +1402,17 @@ function analyzeEditableTextBlocks(
         lastLine.rect = {
           left: Math.min(lastLine.rect.left, frag.rect.left),
           bottom: Math.min(lastLine.rect.bottom, frag.rect.bottom),
-          right: Math.max(lastLine.rect.right, frag.rect.right),
+          right: Math.max(lastLine.rect.right, frag.rect.right, frag.looseRight),
           top: Math.max(lastLine.rect.top, frag.rect.top),
         };
       } else {
         lines.push({
           fragments: [frag],
           runs: [fragToRun(frag)],
-          rect: { ...frag.rect },
+          rect: {
+            ...frag.rect,
+            right: Math.max(frag.rect.right, frag.looseRight),
+          },
           baselineYPt: frag.baselineYPt,
           looseRight: frag.looseRight,
           fontSizePt: frag.fontSizePt,
@@ -1373,6 +1423,8 @@ function analyzeEditableTextBlocks(
           colorHex: frag.colorHex,
           rgba: frag.rgba,
           text: frag.text,
+          isBoldHint: frag.isBoldHint,
+          isItalicHint: frag.isItalicHint,
         });
       }
     }
@@ -1400,76 +1452,134 @@ function analyzeEditableTextBlocks(
         .join('')}`;
     };
 
-    // Agrupa linhas consecutivas em blocos de parágrafo preservando runs individuais por palavra/trecho
-    const blocks: PdfEditableTextBlock[] = [];
+    // Passo 1: Agrupa linhas em blocos candidatos
+    const rawBlocks: Array<{
+      lines: GroupedLine[];
+      rect: PdfRect;
+      fontSizePt: number;
+      fallbackFontFamily: GroupedLine['fallbackFontFamily'];
+    }> = [];
+
     for (const line of lines) {
-      const prevBlock = blocks[blocks.length - 1];
-      const prevLine = prevBlock?.lines[prevBlock.lines.length - 1];
+      const prevCandidate = rawBlocks[rawBlocks.length - 1];
+      const prevLine = prevCandidate?.lines[prevCandidate.lines.length - 1];
       const baselineGap = prevLine ? prevLine.baselineYPt - line.baselineYPt : Infinity;
-      const alignedLeft =
-        prevBlock ? Math.abs(prevBlock.rect.left - line.rect.left) <= line.fontSizePt * 1.5 : false;
+      const alignedLeft = prevCandidate
+        ? Math.abs(prevCandidate.rect.left - line.rect.left) <= line.fontSizePt * 1.5
+        : false;
 
       if (
-        prevBlock &&
+        prevCandidate &&
         prevLine &&
-        prevBlock.fallbackFontFamily === line.fallbackFontFamily &&
-        Math.abs(prevBlock.fontSizePt - line.fontSizePt) <= 2.2 &&
+        prevCandidate.fallbackFontFamily === line.fallbackFontFamily &&
+        Math.abs(prevCandidate.fontSizePt - line.fontSizePt) <= 2.2 &&
         baselineGap > 0 &&
         baselineGap <= line.fontSizePt * 1.65 &&
         alignedLeft
       ) {
-        prevBlock.lines.push({
-          text: line.text,
-          rect: line.rect,
-          baselineYPt: line.baselineYPt,
-        });
-        const prevRuns = prevBlock.runs ?? [];
-        const fallbackStyle = prevRuns[prevRuns.length - 1]?.style ?? line.runs[0].style;
-        prevBlock.runs = [...prevRuns, { text: '\n', style: fallbackStyle }, ...line.runs];
-        prevBlock.objectIndices.push(...line.fragments.map((f) => f.objectIndex));
-        prevBlock.rect = {
-          left: Math.min(prevBlock.rect.left, line.rect.left),
-          bottom: Math.min(prevBlock.rect.bottom, line.rect.bottom),
-          right: Math.max(prevBlock.rect.right, line.rect.right),
-          top: Math.max(prevBlock.rect.top, line.rect.top),
+        prevCandidate.lines.push(line);
+        prevCandidate.rect = {
+          left: Math.min(prevCandidate.rect.left, line.rect.left),
+          bottom: Math.min(prevCandidate.rect.bottom, line.rect.bottom),
+          right: Math.max(prevCandidate.rect.right, line.rect.right),
+          top: Math.max(prevCandidate.rect.top, line.rect.top),
         };
-        prevBlock.originalText = prevBlock.lines.map((l) => l.text).join('\n');
-        prevBlock.lineHeightPt = Math.max(
-          prevBlock.fontSizePt * 1.15,
-          Math.round(baselineGap * 10) / 10
-        );
-        prevBlock.backgroundColorHex = detectBlockBgHex(prevBlock.rect);
       } else {
-        const lowerFont = line.cleanFontName.toLowerCase();
-        blocks.push({
-          id: `txtblk-${pageIndex}-${blocks.length}`,
-          pageIndex,
+        rawBlocks.push({
+          lines: [line],
           rect: { ...line.rect },
-          lines: [
-            {
-              text: line.text,
-              rect: line.rect,
-              baselineYPt: line.baselineYPt,
-            },
-          ],
-          runs: [...line.runs],
-          objectIndices: line.fragments.map((f) => f.objectIndex),
-          rawFontName: line.rawFontName,
-          cleanFontName: line.cleanFontName,
-          fallbackFontFamily: line.fallbackFontFamily,
-          isSubsetFont: line.isSubsetFont,
           fontSizePt: line.fontSizePt,
-          lineHeightPt: Math.round(line.fontSizePt * 1.25 * 10) / 10,
-          colorHex: line.colorHex,
-          rgba: line.rgba,
-          alignment: 'left',
-          originalText: line.text,
-          isBold: lowerFont.includes('bold') || lowerFont.includes('black'),
-          isItalic: lowerFont.includes('italic') || lowerFont.includes('oblique'),
-          backgroundColorHex: detectBlockBgHex(line.rect),
+          fallbackFontFamily: line.fallbackFontFamily,
         });
       }
     }
+
+    // Passo 2: Reconstrói runs diferenciando quebra automática (soft-wrap ' ') de quebra de parágrafo/lista ('\n')
+    const blocks: PdfEditableTextBlock[] = rawBlocks.map((cand, blockIdx) => {
+      const bLines = cand.lines;
+      const firstLine = bLines[0];
+      const minLeft = cand.rect.left;
+      const maxRight = cand.rect.right;
+      const blockWidth = Math.max(1, maxRight - minLeft);
+
+      const gaps: number[] = [];
+      for (let i = 1; i < bLines.length; i++) {
+        const g = bLines[i - 1].baselineYPt - bLines[i].baselineYPt;
+        if (g > 0) gaps.push(g);
+      }
+      const sortedGaps = [...gaps].sort((a, b) => a - b);
+      const medianGap =
+        sortedGaps.length > 0
+          ? sortedGaps[Math.floor(sortedGaps.length / 2)]
+          : firstLine.fontSizePt * 1.2;
+
+      const lineHeightPt =
+        bLines.length > 1
+          ? Math.max(firstLine.fontSizePt * 1.0, Math.round(medianGap * 20) / 20)
+          : Math.round(firstLine.fontSizePt * 1.2 * 20) / 20;
+
+      const blockRuns: RichTextRun[] = [...firstLine.runs];
+      for (let i = 1; i < bLines.length; i++) {
+        const prev = bLines[i - 1];
+        const curr = bLines[i];
+        const currTrim = curr.text.trimStart();
+        const startsWithListMarker = /^([-•*▪▸–—+]|(\d+|[a-zA-Z])[.)])\s/.test(
+          currTrim
+        );
+        const isIndented = curr.rect.left - minLeft > curr.fontSizePt * 1.3;
+        const gap = prev.baselineYPt - curr.baselineYPt;
+        const hasExtraGap = bLines.length >= 3 && gap > medianGap * 1.22;
+        const firstWord = currTrim.split(/\s+/)[0] ?? '';
+        const estFirstWordPt = (firstWord.length + 1) * curr.fontSizePt * 0.53;
+        const endedShort =
+          blockWidth > prev.fontSizePt * 10 &&
+          maxRight - prev.rect.right >
+            Math.max(prev.fontSizePt * 3.0, estFirstWordPt * 1.15);
+
+        const isHardBreak =
+          startsWithListMarker || isIndented || hasExtraGap || endedShort;
+        const sep = isHardBreak
+          ? '\n'
+          : prev.text.endsWith(' ') || curr.text.startsWith(' ')
+          ? ''
+          : ' ';
+        const fallbackStyle =
+          blockRuns[blockRuns.length - 1]?.style ?? curr.runs[0].style;
+        if (sep.length > 0) {
+          blockRuns.push({ text: sep, style: { ...fallbackStyle } });
+        }
+        blockRuns.push(...curr.runs);
+      }
+
+      const originalText = blockRuns.map((r) => r.text).join('');
+      const objectIndices = bLines.flatMap((l) => l.fragments.map((f) => f.objectIndex));
+
+      return {
+        id: `txtblk-${pageIndex}-${blockIdx}`,
+        pageIndex,
+        rect: { ...cand.rect },
+        lines: bLines.map((l) => ({
+          text: l.text,
+          rect: l.rect,
+          baselineYPt: l.baselineYPt,
+        })),
+        runs: blockRuns,
+        objectIndices,
+        rawFontName: firstLine.rawFontName,
+        cleanFontName: firstLine.cleanFontName,
+        fallbackFontFamily: firstLine.fallbackFontFamily,
+        isSubsetFont: firstLine.isSubsetFont,
+        fontSizePt: firstLine.fontSizePt,
+        lineHeightPt,
+        colorHex: firstLine.colorHex,
+        rgba: firstLine.rgba,
+        alignment: 'left' as const,
+        originalText,
+        isBold: firstLine.isBoldHint,
+        isItalic: firstLine.isItalicHint,
+        backgroundColorHex: detectBlockBgHex(cand.rect),
+      };
+    });
 
     return blocks;
   } finally {
@@ -1704,7 +1814,7 @@ function commitEditedTextBlockInWorker(
             (m, s) => Math.max(m, s.fontSizePt),
             payload.style.fontSizePt
           );
-          const stepY = Math.max(payload.style.lineHeightPt, maxFsOnLine * 1.2);
+          const stepY = Math.max(payload.style.lineHeightPt, maxFsOnLine * 1.0);
           currentBaselineY -= stepY;
         }
         if (lineObj.segments.length === 0) return;

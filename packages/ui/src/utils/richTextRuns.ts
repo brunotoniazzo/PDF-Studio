@@ -216,7 +216,7 @@ export function renderRunsIntoEditableDom(
     span.dataset.colorHex = run.style.colorHex;
 
     span.style.fontFamily = cssFontStackForMetric(run.style.fontFamily);
-    span.style.fontSize = `${Math.max(9, run.style.fontSizePt * cssScale)}px`;
+    span.style.fontSize = `${Math.max(4, run.style.fontSizePt * cssScale)}px`;
     span.style.fontWeight = run.style.isBold ? '700' : '400';
     span.style.fontStyle = run.style.isItalic ? 'italic' : 'normal';
     span.style.textDecoration = run.style.isUnderline ? 'underline' : 'none';

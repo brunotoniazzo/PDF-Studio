@@ -144,4 +144,64 @@ describe('Formatação Rica por Seleção de Palavra vs. Bloco Inteiro', () => {
     expect(tallFit.right).toBeLessThanOrEqual(595 - 28 + 0.5);
     expect(tallFit.top - tallFit.bottom).toBeGreaterThan(26);
   });
+
+  it('preserva largura calibrada e quebras de linha em parágrafos multi-linha sem criar órfãos ou marcar edição falsa', () => {
+    const style10: RichTextStyle = { ...baseStyle, fontSizePt: 10 };
+    const linesText = [
+      'Possuo mais de dois anos de experiencia como Desenvolvedor Backend de aplicacoes utilizando o ecossistema Java',
+      'Spring. Alem de experiencia profissional na construcao de grandes aplicacoes e microsservicos. Atualmente atuo',
+      'como Suporte Tecnico ao cliente e anteriormente desempenhei como Estagiario de Tecnologia da Informacao.',
+      '- Atuei profissionalmente como unico desenvolvedor backend em meu primeiro ano de carreira durante um projeto da',
+      'empresa WanSoft Brasil junto do Grupo Sinosserra.',
+    ];
+    const joinedText = [
+      `${linesText[0]} ${linesText[1]} ${linesText[2]}`,
+      `${linesText[3]} ${linesText[4]}`,
+    ].join('\n');
+
+    const multiBlock = {
+      id: 'blk-multi',
+      pageIndex: 0,
+      rect: { left: 36, bottom: 680, right: 558, top: 750 },
+      lines: linesText.map((t, idx) => ({
+        text: t,
+        rect: { left: 36, bottom: 738 - idx * 11.2, right: 558, top: 749 - idx * 11.2 },
+        baselineYPt: 740 - idx * 11.2,
+      })),
+      runs: [
+        { text: linesText[0], style: { ...style10 } },
+        { text: ' ', style: { ...style10 } },
+        { text: linesText[1], style: { ...style10 } },
+        { text: ' ', style: { ...style10 } },
+        { text: linesText[2], style: { ...style10 } },
+        { text: '\n', style: { ...style10 } },
+        { text: linesText[3], style: { ...style10 } },
+        { text: ' ', style: { ...style10 } },
+        { text: linesText[4], style: { ...style10 } },
+      ],
+      objectIndices: [0, 1, 2, 3, 4],
+      rawFontName: 'Arial',
+      cleanFontName: 'Arial',
+      fallbackFontFamily: 'sans' as const,
+      isSubsetFont: false,
+      fontSizePt: 10,
+      lineHeightPt: 11.2,
+      colorHex: '#000000',
+      rgba: [0, 0, 0, 255] as [number, number, number, number],
+      alignment: 'left' as const,
+      originalText: joinedText,
+    };
+
+    const draft = createDraftFromTextBlock(multiBlock);
+    expect(draft.hasUserEdited).toBe(false);
+    expect(draft.runs).toHaveLength(1);
+
+    const boxWidthPt = draft.rect.right - draft.rect.left;
+    expect(boxWidthPt).toBeGreaterThanOrEqual(522);
+
+    // Nenhuma palavra final ("Java", "da") pode ficar isolada em linha órfã ao empacotar!
+    const packaged = layoutRichRunsToStyledLines(draft.runs, boxWidthPt);
+    const renderedLines = packaged.map((l) => l.segments.map((s) => s.text).join(''));
+    expect(renderedLines.some((l) => l.trim() === 'Java' || l.trim() === 'da')).toBe(false);
+  });
 });

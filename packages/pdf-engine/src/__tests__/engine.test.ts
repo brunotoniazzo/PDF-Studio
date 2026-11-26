@@ -303,4 +303,97 @@ describe('Worker PDFium: Análise de Blocos, Espaçamento Exato e Reflow Anti-So
       __pdfiumWorkerTestHooks.closeDocHandle(mod, docId);
     }
   });
+
+  it('distingue soft-wraps de quebras reais de lista/parágrafo e preserva entrelinha compacta', async () => {
+    const wasmPath = path.resolve(
+      __dirname,
+      '../../../../node_modules/@embedpdf/pdfium/dist/pdfium.wasm'
+    );
+    const wasmBinary = fs.readFileSync(wasmPath);
+    const mod = await init({ wasmBinary });
+    mod.PDFiumExt_Init();
+
+    const docPtr = mod.FPDF_CreateNewDocument();
+    const pagePtr = mod.FPDFPage_New(docPtr, 0, 595, 842);
+    const fontPtr = mod.FPDFText_LoadStandardFont(docPtr, 'Helvetica');
+
+    const insertLine = (txt: string, x: number, y: number, fs = 10) => {
+      const obj = mod.FPDFPageObj_CreateTextObj(docPtr, fontPtr, fs);
+      const u16 = mod.pdfium.wasmExports.malloc((txt.length + 1) * 2);
+      mod.pdfium.stringToUTF16(txt, u16, (txt.length + 1) * 2);
+      mod.FPDFText_SetText(obj, u16);
+      mod.pdfium.wasmExports.free(u16);
+      mod.FPDFPageObj_Transform(obj, 1, 0, 0, 1, x, y);
+      mod.FPDFPage_InsertObject(pagePtr, obj);
+    };
+
+    // Simula parágrafo com entrelinha compacta 11.2pt (1.12x em fonte 10pt) e marcador de lista "- "
+    insertLine(
+      'Possuo mais de dois anos de experiencia como Desenvolvedor Backend de aplicacoes utilizando o ecossistema Java',
+      36,
+      750,
+      10
+    );
+    insertLine(
+      'Spring. Alem de experiencia profissional na construcao de grandes aplicacoes e microsservicos. Atualmente atuo',
+      36,
+      738.8,
+      10
+    );
+    insertLine(
+      'como Suporte Tecnico ao cliente e anteriormente desempenhei como Estagiario de Tecnologia da Informacao.',
+      36,
+      727.6,
+      10
+    );
+    insertLine(
+      '- Atuei profissionalmente como unico desenvolvedor backend em meu primeiro ano de carreira durante um projeto da',
+      36,
+      716.4,
+      10
+    );
+    insertLine('empresa WanSoft Brasil junto do Grupo Sinosserra.', 36, 705.2, 10);
+    mod.FPDFPage_GenerateContent(pagePtr);
+
+    const pdfiumHeap = mod.pdfium as unknown as { HEAPU8: Uint8Array };
+    const chunks: Uint8Array[] = [];
+    const adapter = {
+      WriteBlock: (_pThis: number, pData: number, size: number) => {
+        chunks.push(new Uint8Array(pdfiumHeap.HEAPU8.subarray(pData, pData + size)));
+        return 1;
+      },
+    };
+    const fileWritePtr = mod.pdfium.addFunction(adapter.WriteBlock, 'iiii');
+    const structPtr = mod.pdfium.wasmExports.malloc(8);
+    new DataView(pdfiumHeap.HEAPU8.buffer).setInt32(structPtr, 1, true);
+    new DataView(pdfiumHeap.HEAPU8.buffer).setInt32(structPtr + 4, fileWritePtr, true);
+    mod.FPDF_SaveAsCopy(docPtr, structPtr, 0);
+    mod.pdfium.removeFunction(fileWritePtr);
+    mod.pdfium.wasmExports.free(structPtr);
+    mod.FPDF_ClosePage(pagePtr);
+    mod.FPDF_CloseDocument(docPtr);
+
+    const totalLen = chunks.reduce((s, c) => s + c.length, 0);
+    const pdfBytes = new Uint8Array(totalLen);
+    let offset = 0;
+    for (const c of chunks) {
+      pdfBytes.set(c, offset);
+      offset += c.length;
+    }
+
+    const docId = 'test-doc-softwrap-lineheight';
+    __pdfiumWorkerTestHooks.loadDocIntoHeap(mod, { docId, bytes: pdfBytes });
+    try {
+      const blocks = __pdfiumWorkerTestHooks.analyzeEditableTextBlocks(mod, docId, 0);
+      expect(blocks).toHaveLength(1);
+      const blk = blocks[0];
+      expect(blk.lineHeightPt).toBeCloseTo(11.2, 1);
+      // Soft wraps juntam com espaço simples (não \n!), enquanto marcador "- " recebe \n
+      expect(blk.originalText).toContain('ecossistema Java Spring.');
+      expect(blk.originalText).toContain('um projeto da empresa WanSoft');
+      expect(blk.originalText).toContain('\n- Atuei profissionalmente');
+    } finally {
+      __pdfiumWorkerTestHooks.closeDocHandle(mod, docId);
+    }
+  });
 });

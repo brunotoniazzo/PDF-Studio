@@ -296,6 +296,7 @@ export function PageStackView({
     const startRect = { ...startDraft.rect };
 
     const onMove = (ev: PointerEvent) => {
+      if (Math.hypot(ev.clientX - startClientX, ev.clientY - startClientY) <= 1) return;
       const dxPt = (ev.clientX - startClientX) / cssScale;
       const dyPt = -(ev.clientY - startClientY) / cssScale;
       const nextRect: PdfRect = { ...startRect };
@@ -330,6 +331,7 @@ export function PageStackView({
         activeTextBlockDraft: {
           ...latest,
           rect: nextRect,
+          hasUserEdited: true,
           hasManualWidthResize:
             latest.hasManualWidthResize || mode.includes('e') || mode.includes('w'),
           hasManualHeightResize:

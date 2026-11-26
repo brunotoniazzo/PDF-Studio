@@ -1,5 +1,6 @@
 import type {
   IPlatformAdapter,
+  MetricFontFamily,
   OpenedFileResult,
   RecentDocumentEntry,
   RecoverableSessionEntry,
@@ -62,6 +63,8 @@ function triggerBrowserDownload(
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
+
+const webFontCache = new Map<string, Uint8Array | null>();
 
 export function createBrowserPlatformAdapter(): IPlatformAdapter {
   return {
@@ -289,14 +292,41 @@ export function createBrowserPlatformAdapter(): IPlatformAdapter {
     fontRepository: {
       async listAvailableFonts() {
         return [
-          { name: 'Liberation Sans (Helvetica)', family: 'sans' },
-          { name: 'Liberation Serif (Times)', family: 'serif' },
-          { name: 'Liberation Mono (Courier)', family: 'mono' },
-          { name: 'Carlito (Calibri)', family: 'calibri' },
+          { name: 'Arial / Liberation Sans (Helvetica)', family: 'sans' },
+          { name: 'Times New Roman / Liberation Serif', family: 'serif' },
+          { name: 'Courier New / Liberation Mono', family: 'mono' },
+          { name: 'Calibri / Carlito', family: 'calibri' },
         ];
       },
-      async loadFallbackFontBytes() {
-        return null;
+      async loadFallbackFontBytes(
+        family: MetricFontFamily,
+        options?: { bold?: boolean; italic?: boolean }
+      ): Promise<Uint8Array | null> {
+        const bold = Boolean(options?.bold);
+        const italic = Boolean(options?.italic);
+        const cacheKey = `${family}:${bold ? 'b' : 'r'}${italic ? 'i' : 'n'}`;
+        if (webFontCache.has(cacheKey)) {
+          return webFontCache.get(cacheKey) ?? null;
+        }
+        try {
+          const resp = await fetch(
+            `/__pdf_studio_font?family=${encodeURIComponent(family)}&bold=${bold ? '1' : '0'}&italic=${italic ? '1' : '0'}`
+          );
+          if (!resp.ok) {
+            webFontCache.set(cacheKey, null);
+            return null;
+          }
+          const buf = new Uint8Array(await resp.arrayBuffer());
+          if (buf.byteLength < 1024) {
+            webFontCache.set(cacheKey, null);
+            return null;
+          }
+          webFontCache.set(cacheKey, buf);
+          return buf;
+        } catch {
+          webFontCache.set(cacheKey, null);
+          return null;
+        }
       },
     },
 

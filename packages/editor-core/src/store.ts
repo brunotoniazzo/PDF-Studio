@@ -52,6 +52,8 @@ export interface ActiveTextBlockDraft {
   backgroundColorHex: string;
   hasManualWidthResize?: boolean;
   hasManualHeightResize?: boolean;
+  hasUserEdited?: boolean;
+  calibratedOrigWidthPt?: number;
 }
 
 export interface DocumentTabState {

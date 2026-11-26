@@ -50,8 +50,13 @@ Você também pode acompanhar as versões na aba de [GitHub Releases](https://gi
 ### Histórico de Versões (`Changelog`)
 
 #### Atualização do Modo Editar de `26/11/2026` (Aplicada em todas as releases: `v2.0.0-beta.1` e `v1.0.0`)
+- **Preservação fiel de formatação, entrelinha e quebras de parágrafo (`pdfium.worker.ts` & `textBlockCommit.ts`):**
+  - Detecção precisa de tamanho escalado por matriz (`scaleY`), peso (`FPDFFont_GetWeight`), itálico/família (`FPDFFont_GetFlags` / `FPDFFont_GetFamilyName`) e entrelinha mediana compacta (sem inflação forçada para `1,2×`).
+  - Reconstrução de parágrafos diferenciando quebras automáticas (*soft-wrap* `' '`) de quebras reais de parágrafo/marcadores (`\n`), calibrando a largura útil de coluna e compensando borda/preenchimento da caixa do editor para evitar palavras órfãs isoladas durante a edição e ao aplicar.
+  - Guarda de alteração real (`hasUserEdited` e comparação de *runs* normalizados): clicar em **Aplicar** sem editar o bloco fecha a caixa sem alterar o PDF.
+  - Middleware local de fontes TrueType nativas no modo Web (`/__pdf_studio_font`) e suporte ampliado de fontes TrueType CID no PDFium WASM.
 - **Reflow automático anti-sobreposição no PDF (`pdfium.worker.ts`):** Ao expandir um bloco editado (horizontalmente ou adicionando novas linhas), objetos à direita na mesma linha e parágrafos/blocos abaixo são automaticamente reposicionados preservando o espaçamento original (expandindo `MediaBox`/`CropBox` quando necessário) e aplicando fundo opaco protetor em deslocamentos livres ou sobreposições residuais.
-- **Autoajuste dinâmico da caixa de texto (`autoFitDraftRect`):** Blocos curtos expandem automaticamente sua largura até a margem útil da página conforme o usuário digita ou altera o estilo/tamanho da fonte, evitando quebras prematuras de linha e adaptando a altura vertical em múltiplas linhas (mantendo respeito a ajustes manuais pelas alças e botão **Auto** no Inspetor Direito).
+- **Autoajuste dinâmico da caixa de texto (`autoFitDraftRect`):** Blocos de linha única expandem automaticamente sua largura até a margem útil da página conforme o usuário digita ou altera o estilo/tamanho da fonte, enquanto parágrafos originalmente multi-linha mantêm sua largura de coluna e ajustam a altura vertical automaticamente (com botão **Auto** no Inspetor Direito).
 - **Correção exata de espaçamento entre letras e segmentos (`analyzeEditableTextBlocks` & `commitEditedTextBlockInWorker`):** Filtragem de espaços sintéticos de kerning (`FPDFText_IsGenerated`) em fragmentos adjacentes, ordenação por *baseline* real (`FPDFText_GetCharOrigin`), fusão automática de segmentos consecutivos de mesmo estilo e cálculo exato de avanço tipográfico com marcadores delimitadores sem introduzir espaços fantasmas em palavras não alteradas.
 
 #### Atualização Beta de `26/11/2026` (`v2.0.0-beta.1` — PDF Studio Beta · Cult UI Edition)

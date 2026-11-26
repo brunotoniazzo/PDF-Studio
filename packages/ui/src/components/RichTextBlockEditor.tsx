@@ -71,6 +71,7 @@ export function applyPatchToDraft(
       runs,
       defaultStyle,
       rect: nextRect,
+      hasUserEdited: true,
       text: runsToPlainText(runs),
       formatRevision: draft.formatRevision + 1,
       fontSizePt: defaultStyle.fontSizePt,
@@ -196,6 +197,7 @@ export function RichTextBlockEditor({
         runs: parsedRuns,
         text: runsToPlainText(parsedRuns),
         rect: nextRect,
+        hasUserEdited: true,
         selection: offsets,
       },
     });
@@ -227,10 +229,10 @@ export function RichTextBlockEditor({
       {/* Caixa Interativa Expansível (8 alças) com estética Cult UI */}
       <div
         style={{
-          left: Math.max(0, draftBox.x * cssScale - 4),
-          top: Math.max(0, draftBox.y * cssScale - 2),
-          width: Math.max(64, draftBox.width * cssScale + 12),
-          minHeight: Math.max(30, draftBox.height * cssScale + 6),
+          left: Math.max(0, draftBox.x * cssScale - 8),
+          top: Math.max(0, draftBox.y * cssScale - 6),
+          width: Math.max(64, Math.ceil(draftBox.width * cssScale) + 18),
+          minHeight: Math.max(26, Math.ceil(draftBox.height * cssScale) + 12),
           backgroundColor: draft.opaqueBackground
             ? draft.backgroundColorHex
             : 'rgba(255,255,255,0.97)',
@@ -347,6 +349,7 @@ export function RichTextBlockEditor({
                     ...draft,
                     rect: fitted,
                     hasManualWidthResize: true,
+                    hasUserEdited: true,
                   },
                 });
               }}
@@ -432,7 +435,7 @@ export function RichTextBlockEditor({
             wordBreak: 'normal',
             overflowWrap: 'break-word',
           }}
-          className="w-full flex-1 cursor-text p-1.5 outline-none selection:bg-[#1A94FF]/20"
+          className="w-full flex-1 cursor-text px-1.5 py-1 outline-none selection:bg-[#1A94FF]/20"
         />
 
         {/* Barra Inferior Tátil */}

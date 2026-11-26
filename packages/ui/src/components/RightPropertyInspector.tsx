@@ -441,7 +441,11 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                 const draft = tab.activeTextBlockDraft;
                 const patchDraft = (patch: Partial<ActiveTextBlockDraft>) => {
                   updateTabState(tab.tabId, {
-                    activeTextBlockDraft: { ...draft, ...patch },
+                    activeTextBlockDraft: {
+                      ...draft,
+                      ...patch,
+                      hasUserEdited: patch.hasUserEdited ?? true,
+                    },
                   });
                 };
                 const curGeo = tab.geometries[draft.pageIndex];
@@ -514,6 +518,7 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                                 end: draft.selection.end,
                               },
                               formatRevision: draft.formatRevision + 1,
+                              hasUserEdited: draft.hasUserEdited,
                             })
                           }
                           className="shrink-0 rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium hover:bg-sky-500/25"
@@ -682,6 +687,7 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                                 updateTabState(tab.tabId, {
                                   activeTextBlockDraft: {
                                     ...latest,
+                                    hasUserEdited: true,
                                     lineHeightPt: nextLh,
                                     rect: autoFitDraftRect(latest, latest.runs, nextLh, curGeo),
                                   },

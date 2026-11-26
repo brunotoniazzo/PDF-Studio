@@ -52,6 +52,25 @@ interface StyledToken {
   widthPt: number;
 }
 
+let cachedMeasureCtx: CanvasRenderingContext2D | null | undefined;
+
+export function measureStyledTextWidthPt(txt: string, st: RichTextStyle): number {
+  if (!txt) return 0;
+  if (typeof document === 'undefined') {
+    return txt.length * st.fontSizePt * (st.isBold ? 0.56 : 0.52);
+  }
+  if (cachedMeasureCtx === undefined) {
+    cachedMeasureCtx = document.createElement('canvas').getContext('2d') ?? null;
+  }
+  if (!cachedMeasureCtx) {
+    return txt.length * st.fontSizePt * (st.isBold ? 0.56 : 0.52);
+  }
+  const weight = st.isBold ? 'bold' : 'normal';
+  const italic = st.isItalic ? 'italic' : 'normal';
+  cachedMeasureCtx.font = `${italic} ${weight} ${st.fontSizePt}px ${cssFontStackForMetric(st.fontFamily)}`;
+  return cachedMeasureCtx.measureText(txt).width;
+}
+
 /**
  * Realiza quebra de linhas multi-estilo (RichTextRun[]) respeitando exatamente
  * a largura expandida/ajustada do bloco (boxWidthPt), preservando Negrito, Itálico,
@@ -61,19 +80,9 @@ export function layoutRichRunsToStyledLines(
   runs: RichTextRun[],
   boxWidthPt: number
 ): CommitStyledLine[] {
-  const safeMaxWidthPt = Math.max(24, boxWidthPt - 4);
-  const canvas =
-    typeof document !== 'undefined' ? document.createElement('canvas') : null;
-  const ctx = canvas?.getContext('2d') ?? null;
-
-  const measureTokenPt = (txt: string, st: RichTextStyle): number => {
-    if (!txt) return 0;
-    if (!ctx) return txt.length * st.fontSizePt * (st.isBold ? 0.56 : 0.52);
-    const weight = st.isBold ? 'bold' : 'normal';
-    const italic = st.isItalic ? 'italic' : 'normal';
-    ctx.font = `${italic} ${weight} ${st.fontSizePt}px ${cssFontStackForMetric(st.fontFamily)}`;
-    return ctx.measureText(txt).width;
-  };
+  const safeMaxWidthPt = Math.max(24, boxWidthPt + 1.5);
+  const measureTokenPt = (txt: string, st: RichTextStyle): number =>
+    measureStyledTextWidthPt(txt, st);
 
   // 1. Divide runs em parágrafos explícitos por '\n'
   const paragraphs: RichTextRun[][] = [[]];
@@ -212,7 +221,8 @@ export function layoutRichRunsToStyledLines(
 
 /**
  * Calcula largura/altura ideais do bloco conforme o texto digitado e estilos aplicados,
- * expandindo horizontalmente até a margem útil da página antes de quebrar linhas.
+ * expandindo blocos de linha única até a margem útil da página e preservando largura
+ * de coluna em parágrafos originalmente multi-linha.
  */
 export function autoFitDraftRect(
   draft: ActiveTextBlockDraft,
@@ -220,21 +230,9 @@ export function autoFitDraftRect(
   lineHeightPt: number,
   pageGeometry?: PdfPageGeometry | null
 ): PdfRect {
-  const canvas =
-    typeof document !== 'undefined' ? document.createElement('canvas') : null;
-  const ctx = canvas?.getContext('2d') ?? null;
-
-  const measureSegWidthPt = (txt: string, st: RichTextStyle): number => {
-    if (!txt) return 0;
-    if (!ctx) return txt.length * st.fontSizePt * (st.isBold ? 0.56 : 0.52);
-    const weight = st.isBold ? 'bold' : 'normal';
-    const italic = st.isItalic ? 'italic' : 'normal';
-    ctx.font = `${italic} ${weight} ${st.fontSizePt}px ${cssFontStackForMetric(st.fontFamily)}`;
-    return ctx.measureText(txt).width;
-  };
-
-  // Calcula largura natural de cada parágrafo explícito para expandir em vez de quebrar precocemente
+  // Calcula largura natural de cada parágrafo explícito e da maior palavra isolada
   let maxNaturalLineWidthPt = 0;
+  let maxSingleTokenWidthPt = 0;
   let currentParaWidthPt = 0;
   for (const r of runs) {
     const parts = r.text.replace(/\r\n/g, '\n').split('\n');
@@ -244,14 +242,26 @@ export function autoFitDraftRect(
         currentParaWidthPt = 0;
       }
       if (parts[i]) {
-        currentParaWidthPt += measureSegWidthPt(parts[i], r.style);
+        currentParaWidthPt += measureStyledTextWidthPt(parts[i], r.style);
+        const words = parts[i].match(/\S+/g) ?? [];
+        for (const w of words) {
+          maxSingleTokenWidthPt = Math.max(
+            maxSingleTokenWidthPt,
+            measureStyledTextWidthPt(w, r.style)
+          );
+        }
       }
     }
   }
   maxNaturalLineWidthPt = Math.max(maxNaturalLineWidthPt, currentParaWidthPt);
 
-  const origWidthPt = Math.max(28, draft.sourceBlock.rect.right - draft.sourceBlock.rect.left);
+  const baseOrigWidthPt = Math.max(
+    28,
+    draft.calibratedOrigWidthPt ??
+      draft.sourceBlock.rect.right - draft.sourceBlock.rect.left
+  );
   const currentWidthPt = Math.max(28, draft.rect.right - draft.rect.left);
+  const isOriginallyMultiLine = draft.sourceBlock.lines.length > 1;
 
   let nextRight = draft.rect.left + currentWidthPt;
   if (!draft.hasManualWidthResize) {
@@ -259,22 +269,31 @@ export function autoFitDraftRect(
     const pageRight =
       pageGeometry?.cropBox.right ?? pageLeft + (pageGeometry?.widthPt ?? 595.28);
     const maxAvailWidthPt = Math.max(64, pageRight - 28 - draft.rect.left);
-    const paddedNaturalWidthPt = maxNaturalLineWidthPt + 12;
-    const minBaselineWidthPt = draft.alignment !== 'left' ? origWidthPt : 44;
-    const targetWidthPt = Math.min(
-      maxAvailWidthPt,
-      Math.max(minBaselineWidthPt, paddedNaturalWidthPt)
-    );
-    nextRight = draft.rect.left + targetWidthPt;
+
+    if (isOriginallyMultiLine) {
+      const colWidthPt = Math.min(
+        maxAvailWidthPt,
+        Math.max(baseOrigWidthPt, maxSingleTokenWidthPt + 6)
+      );
+      nextRight = draft.rect.left + colWidthPt;
+    } else {
+      const paddedNaturalWidthPt = maxNaturalLineWidthPt + 8;
+      const minBaselineWidthPt = draft.alignment !== 'left' ? baseOrigWidthPt : 44;
+      const targetWidthPt = Math.min(
+        maxAvailWidthPt,
+        Math.max(minBaselineWidthPt, paddedNaturalWidthPt)
+      );
+      nextRight = draft.rect.left + targetWidthPt;
+    }
   }
 
   const finalBoxWidthPt = Math.max(28, nextRight - draft.rect.left);
   const styledLines = layoutRichRunsToStyledLines(runs, finalBoxWidthPt);
   const effectiveLineCount = Math.max(1, styledLines.length);
-  const effectiveStepY = Math.max(lineHeightPt, draft.fontSizePt * 1.2);
+  const effectiveStepY = Math.max(lineHeightPt, draft.fontSizePt * 1.0);
   const minFitHeightPt = Math.max(
     16,
-    (effectiveLineCount - 1) * effectiveStepY + Math.max(lineHeightPt, draft.fontSizePt * 1.32)
+    (effectiveLineCount - 1) * effectiveStepY + Math.max(lineHeightPt, draft.fontSizePt * 1.2)
   );
 
   const currentHeightPt = Math.max(16, draft.rect.top - draft.rect.bottom);
@@ -305,6 +324,13 @@ export function createDraftFromTextBlock(block: PdfEditableTextBlock): ActiveTex
       ? normalizeRichRuns(block.runs, defaultStyle)
       : [{ text: block.originalText, style: { ...defaultStyle } }];
 
+  const rawWidthPt = Math.max(28, block.rect.right - block.rect.left);
+  const maxMeasuredLinePt = block.lines.reduce(
+    (maxW, line) => Math.max(maxW, measureStyledTextWidthPt(line.text, defaultStyle)),
+    0
+  );
+  const calibratedOrigWidthPt = Math.max(rawWidthPt, maxMeasuredLinePt + 2);
+
   return {
     blockId: block.id,
     sourceBlock: block,
@@ -314,7 +340,12 @@ export function createDraftFromTextBlock(block: PdfEditableTextBlock): ActiveTex
     defaultStyle,
     selection: { start: 0, end: 0 },
     formatRevision: 1,
-    rect: { ...block.rect },
+    rect: {
+      ...block.rect,
+      right: block.rect.left + calibratedOrigWidthPt,
+    },
+    calibratedOrigWidthPt,
+    hasUserEdited: false,
     fontSizePt: block.fontSizePt,
     lineHeightPt: block.lineHeightPt,
     fontFamily: block.fallbackFontFamily,
@@ -338,38 +369,46 @@ export async function commitTextBlockDraftToPdf(params: {
   const { tab, block, draft, platform, deleteBlockOnly } = params;
   const store = usePdfStudioStore.getState();
 
-  const plainText = deleteBlockOnly ? '' : runsToPlainText(draft.runs);
-  const rectChanged =
-    Math.abs(draft.rect.left - block.rect.left) > 0.5 ||
-    Math.abs(draft.rect.right - block.rect.right) > 0.5 ||
-    Math.abs(draft.rect.bottom - block.rect.bottom) > 0.5 ||
-    Math.abs(draft.rect.top - block.rect.top) > 0.5;
+  const defaultBlockStyle: RichTextStyle = {
+    fontFamily: block.fallbackFontFamily,
+    fontSizePt: block.fontSizePt,
+    isBold: Boolean(block.isBold),
+    isItalic: Boolean(block.isItalic),
+    isUnderline: false,
+    colorHex: block.colorHex,
+  };
 
-  const origRuns = block.runs ?? [
-    {
-      text: block.originalText,
-      style: {
-        fontFamily: block.fallbackFontFamily,
-        fontSizePt: block.fontSizePt,
-        isBold: Boolean(block.isBold),
-        isItalic: Boolean(block.isItalic),
-        isUnderline: false,
-        colorHex: block.colorHex,
-      },
-    },
-  ];
+  const normalizedDraftRuns = deleteBlockOnly
+    ? []
+    : normalizeRichRuns(draft.runs, defaultBlockStyle);
+  const normalizedOrigRuns = normalizeRichRuns(
+    block.runs && block.runs.length > 0
+      ? block.runs
+      : [{ text: block.originalText, style: { ...defaultBlockStyle } }],
+    defaultBlockStyle
+  );
+
+  const manualRectChanged =
+    Boolean(draft.hasManualWidthResize || draft.hasManualHeightResize) ||
+    Math.abs(draft.rect.left - block.rect.left) > 1.5 ||
+    Math.abs(draft.rect.top - block.rect.top) > 1.5;
+
   const runsChanged =
-    draft.runs.length !== origRuns.length ||
-    draft.runs.some(
+    normalizedDraftRuns.length !== normalizedOrigRuns.length ||
+    normalizedDraftRuns.some(
       (r, idx) =>
-        r.text !== origRuns[idx]?.text || !areRichStylesEqual(r.style, origRuns[idx].style)
+        r.text !== normalizedOrigRuns[idx]?.text ||
+        !areRichStylesEqual(r.style, normalizedOrigRuns[idx].style)
     );
   const blockPropsChanged =
     Math.abs(draft.lineHeightPt - block.lineHeightPt) > 0.2 ||
     draft.alignment !== (block.alignment ?? 'left') ||
     draft.opaqueBackground;
 
-  if (!deleteBlockOnly && plainText === block.originalText && !rectChanged && !runsChanged && !blockPropsChanged) {
+  if (
+    !deleteBlockOnly &&
+    (!draft.hasUserEdited || (!runsChanged && !manualRectChanged && !blockPropsChanged))
+  ) {
     store.updateTabState(tab.tabId, {
       activeEditingBlockId: null,
       activeTextBlockDraft: null,
