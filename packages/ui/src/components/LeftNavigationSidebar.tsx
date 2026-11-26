@@ -27,6 +27,16 @@ import {
   usePdfStudioStore,
 } from '@pdf-studio/editor-core';
 import { usePlatformActions } from '../context/PlatformContext';
+import {
+  CollabToolbar,
+  HaloBadge,
+  HaloInput,
+  HaloSelect,
+  MinimalCard,
+  MinimalCardFrame,
+  TextureButton,
+  TextureSeparator,
+} from './cult/CultUiPrimitives';
 
 function PageThumbnailCard({
   docId,
@@ -34,7 +44,6 @@ function PageThumbnailCard({
   widthPt,
   heightPt,
   isCurrent,
-  darkMode,
   onSelect,
   onRotate,
   onDuplicate,
@@ -48,7 +57,6 @@ function PageThumbnailCard({
   widthPt: number;
   heightPt: number;
   isCurrent: boolean;
-  darkMode: boolean;
   onSelect: () => void;
   onRotate: () => void;
   onDuplicate: () => void;
@@ -89,61 +97,64 @@ function PageThumbnailCard({
   }, [docId, pageIndex, widthPt, heightPt]);
 
   return (
-    <div
+    <MinimalCard
       draggable
+      active={isCurrent}
       onDragStart={onDragStart}
       onDragOver={(e) => e.preventDefault()}
       onDrop={onDrop}
       onClick={onSelect}
-      className={`group relative flex cursor-pointer flex-col items-center rounded-lg border p-2 transition ${
-        isCurrent
-          ? 'border-[#1B2952] bg-[#1B2952]/10 ring-1 ring-[#1B2952] dark:border-blue-400 dark:bg-blue-500/15 dark:ring-blue-400'
-          : darkMode
-          ? 'border-transparent hover:bg-[#262E3D]'
-          : 'border-transparent hover:bg-slate-100'
-      }`}
+      className="group relative flex cursor-pointer flex-col items-center p-2"
     >
-      <div className="relative overflow-hidden rounded border border-slate-300 bg-white shadow-sm dark:border-slate-600">
-        <canvas ref={canvasRef} className="block max-h-44 w-[116px] object-contain" />
-        <div className="absolute right-1 top-1 hidden items-center gap-0.5 rounded bg-slate-900/80 p-0.5 text-white group-hover:flex">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onRotate();
-            }}
-            title="Rotacionar 90°"
-            className="rounded p-1 hover:bg-white/20"
-          >
-            <RotateCw className="h-3 w-3" strokeWidth={1.5} />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDuplicate();
-            }}
-            title="Duplicar página"
-            className="rounded p-1 hover:bg-white/20"
-          >
-            <Copy className="h-3 w-3" strokeWidth={1.5} />
-          </button>
-          {canDelete && (
+      <MinimalCardFrame className="relative rounded-[10px]">
+        <canvas ref={canvasRef} className="block max-h-44 w-[124px] object-contain" />
+        <div className="absolute right-1.5 top-1.5 hidden group-hover:flex">
+          <CollabToolbar darkSurface className="gap-0.5 p-0.5">
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onDelete();
+                onRotate();
               }}
-              title="Excluir página"
-              className="rounded p-1 text-red-300 hover:bg-red-600 hover:text-white"
+              title="Rotacionar 90°"
+              className="rounded-full p-1 hover:bg-white/15"
             >
-              <Trash2 className="h-3 w-3" strokeWidth={1.5} />
+              <RotateCw className="h-3 w-3" strokeWidth={1.6} />
             </button>
-          )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDuplicate();
+              }}
+              title="Duplicar página"
+              className="rounded-full p-1 hover:bg-white/15"
+            >
+              <Copy className="h-3 w-3" strokeWidth={1.6} />
+            </button>
+            {canDelete && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                title="Excluir página"
+                className="rounded-full p-1 text-red-400 hover:bg-red-600 hover:text-white"
+              >
+                <Trash2 className="h-3 w-3" strokeWidth={1.6} />
+              </button>
+            )}
+          </CollabToolbar>
         </div>
-      </div>
-      <span className="mt-1.5 text-[11px] font-medium tabular-nums">
+      </MinimalCardFrame>
+      <span
+        className={`mt-2 text-[11px] font-medium tabular-nums ${
+          isCurrent
+            ? 'font-semibold text-neutral-950 dark:text-white'
+            : 'text-neutral-500 dark:text-neutral-400'
+        }`}
+      >
         {pageIndex + 1}
       </span>
-    </div>
+    </MinimalCard>
   );
 }
 
@@ -168,7 +179,6 @@ export function LeftNavigationSidebar({
   onScrollToPage: (pageIndex: number) => void;
 }) {
   const { platform, applyStructuralMutation } = usePlatformActions();
-  const darkMode = usePdfStudioStore((s) => s.darkMode);
   const leftSidebarOpen = usePdfStudioStore((s) => s.leftSidebarOpen);
   const leftSidebarPanel = usePdfStudioStore((s) => s.leftSidebarPanel);
   const leftSidebarWidth = usePdfStudioStore((s) => s.leftSidebarWidth);
@@ -241,19 +251,9 @@ export function LeftNavigationSidebar({
   };
 
   return (
-    <aside
-      className={`z-20 flex shrink-0 select-none border-r ${
-        darkMode
-          ? 'border-[#334155] bg-[#1E2430] text-slate-200'
-          : 'border-[#E2E8F0] bg-[#F8FAFC] text-slate-700'
-      }`}
-    >
-      {/* Trilho Vertical Fixo (44 px) */}
-      <div
-        className={`flex w-[44px] shrink-0 flex-col items-center gap-1 border-r py-2 ${
-          darkMode ? 'border-[#334155] bg-[#1E2430]' : 'border-[#E2E8F0] bg-white'
-        }`}
-      >
+    <aside className="z-20 flex shrink-0 select-none border-r border-black/[0.08] bg-[#FAFAFA] text-neutral-700 dark:border-white/[0.08] dark:bg-[#161716] dark:text-neutral-200">
+      {/* Trilho Vertical Fixo Cult UI (46 px) */}
+      <div className="flex w-[46px] shrink-0 flex-col items-center gap-1.5 border-r border-black/[0.06] bg-white py-2.5 dark:border-white/[0.06] dark:bg-[#1C1D1C]">
         {RAIL_ITEMS.map((item) => {
           const Icon = item.icon;
           const active = leftSidebarOpen && leftSidebarPanel === item.id;
@@ -262,20 +262,23 @@ export function LeftNavigationSidebar({
               key={item.id}
               onClick={() => setLeftSidebarPanel(item.id)}
               title={item.label}
-              className={`relative flex h-8 w-8 items-center justify-center rounded-md transition ${
+              className={`relative flex h-8 w-8 items-center justify-center rounded-[9px] border transition-[background-color,color,box-shadow,transform] duration-150 active:scale-95 ${
                 active
-                  ? 'bg-[#1B2952] text-white dark:bg-[#2F4D8F]'
-                  : 'opacity-75 hover:bg-slate-500/15 hover:opacity-100'
+                  ? 'border-black/15 bg-gradient-to-b from-neutral-800 to-neutral-950 text-white shadow-[0_1px_2px_rgba(0,0,0,0.2)] dark:border-white/15 dark:from-neutral-100 dark:to-neutral-200 dark:text-neutral-950'
+                  : 'border-transparent text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-[#262726] dark:hover:text-neutral-100'
               }`}
             >
-              <Icon className="h-4 w-4" strokeWidth={1.5} />
+              <Icon className="h-4 w-4" strokeWidth={1.6} />
               {item.id === 'comments' && allAnnotations.length > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-[#2F4D8F] px-1 text-[9px] font-bold text-white">
+                <HaloBadge
+                  tone="sky"
+                  className="absolute -right-1 -top-1 min-w-[15px] px-1 text-[9px]"
+                >
                   {allAnnotations.length}
-                </span>
+                </HaloBadge>
               )}
               {item.id === 'signatures' && tab.signatures.length > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-emerald-500" />
+                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-[#1C1D1C]" />
               )}
             </button>
           );
@@ -288,29 +291,28 @@ export function LeftNavigationSidebar({
           style={{ width: leftSidebarWidth }}
           className="relative flex h-full flex-col overflow-hidden"
         >
-          <div
-            className={`flex h-9 shrink-0 items-center justify-between border-b px-3 text-xs font-semibold ${
-              darkMode ? 'border-[#334155]' : 'border-[#E2E8F0]'
-            }`}
-          >
+          <div className="flex h-10 shrink-0 items-center justify-between px-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-neutral-500 dark:text-neutral-400">
             <span className="truncate">
               {RAIL_ITEMS.find((r) => r.id === leftSidebarPanel)?.label}
             </span>
             {leftSidebarPanel === 'bookmarks' && (
-              <button
+              <TextureButton
+                variant="minimal"
+                size="icon"
                 onClick={addBookmarkForCurrentPage}
                 title="Adicionar marcador na página atual"
-                className="rounded p-1 hover:bg-slate-500/15"
               >
-                <BookmarkPlus className="h-3.5 w-3.5" strokeWidth={1.5} />
-              </button>
+                <BookmarkPlus className="h-3.5 w-3.5" strokeWidth={1.6} />
+              </TextureButton>
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-2.5 text-xs">
+          <TextureSeparator />
+
+          <div className="flex-1 overflow-y-auto p-3 text-xs">
             {/* 1. MINIATURAS */}
             {leftSidebarPanel === 'thumbnails' && (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {tab.geometries.map((geo) => (
                   <PageThumbnailCard
                     key={`${tab.bytes.byteLength}-${geo.pageIndex}-${geo.rotation}`}
@@ -319,7 +321,6 @@ export function LeftNavigationSidebar({
                     widthPt={geo.widthPt}
                     heightPt={geo.heightPt}
                     isCurrent={tab.currentPage === geo.pageIndex}
-                    darkMode={darkMode}
                     onSelect={() => onScrollToPage(geo.pageIndex)}
                     onRotate={() => {
                       void applyStructuralMutation(
@@ -368,16 +369,20 @@ export function LeftNavigationSidebar({
                 {tab.bookmarks.length === 0 ? (
                   <div className="py-8 text-center">
                     <Bookmark
-                      className="mx-auto mb-2 h-6 w-6 opacity-40"
+                      className="mx-auto mb-2 h-6 w-6 opacity-35"
                       strokeWidth={1.5}
                     />
-                    <p className="opacity-70">Este documento ainda não possui marcadores.</p>
-                    <button
+                    <p className="text-neutral-500 dark:text-neutral-400">
+                      Este documento ainda não possui marcadores.
+                    </p>
+                    <TextureButton
+                      variant="primary"
+                      size="xs"
+                      className="mt-3"
                       onClick={addBookmarkForCurrentPage}
-                      className="mt-3 rounded bg-[#1B2952] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#2F4D8F]"
                     >
                       Adicionar marcador na página atual
-                    </button>
+                    </TextureButton>
                   </div>
                 ) : (
                   <div className="space-y-1">
@@ -389,14 +394,14 @@ export function LeftNavigationSidebar({
                             setEditingBookmarkId(bm.id);
                             setEditingBookmarkTitle(bm.title);
                           }}
-                          className={`flex cursor-pointer items-center justify-between rounded px-2 py-1.5 ${
+                          className={`flex cursor-pointer items-center justify-between rounded-[8px] px-2.5 py-1.5 transition-colors ${
                             tab.currentPage === bm.pageIndex
-                              ? 'bg-[#1B2952]/15 font-semibold text-[#1B2952] dark:bg-blue-500/20 dark:text-blue-300'
-                              : 'hover:bg-slate-500/10'
+                              ? 'bg-neutral-900 font-medium text-white dark:bg-neutral-100 dark:text-neutral-950'
+                              : 'hover:bg-neutral-200/70 dark:hover:bg-[#232423]'
                           }`}
                         >
                           {editingBookmarkId === bm.id ? (
-                            <input
+                            <HaloInput
                               autoFocus
                               value={editingBookmarkTitle}
                               onChange={(e) => setEditingBookmarkTitle(e.target.value)}
@@ -411,12 +416,12 @@ export function LeftNavigationSidebar({
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') e.currentTarget.blur();
                               }}
-                              className="w-full rounded border px-1 py-0.5 text-xs text-slate-900"
+                              className="h-6 px-1.5"
                             />
                           ) : (
                             <>
                               <span className="truncate">{bm.title}</span>
-                              <span className="ml-2 shrink-0 opacity-50 tabular-nums">
+                              <span className="ml-2 shrink-0 text-[11px] opacity-60 tabular-nums">
                                 p. {bm.pageIndex + 1}
                               </span>
                             </>
@@ -426,10 +431,10 @@ export function LeftNavigationSidebar({
                           <div
                             key={child.id}
                             onClick={() => onScrollToPage(child.pageIndex)}
-                            className="ml-4 flex cursor-pointer items-center justify-between rounded px-2 py-1 opacity-85 hover:bg-slate-500/10"
+                            className="ml-4 flex cursor-pointer items-center justify-between rounded-[7px] px-2 py-1 opacity-85 hover:bg-neutral-200/60 dark:hover:bg-[#232423]"
                           >
                             <span className="truncate">{child.title}</span>
-                            <span className="ml-2 opacity-50 tabular-nums">
+                            <span className="ml-2 text-[11px] opacity-55 tabular-nums">
                               p. {child.pageIndex + 1}
                             </span>
                           </div>
@@ -447,83 +452,81 @@ export function LeftNavigationSidebar({
                 {allAnnotations.length === 0 ? (
                   <div className="py-8 text-center">
                     <MessageSquare
-                      className="mx-auto mb-2 h-6 w-6 opacity-40"
+                      className="mx-auto mb-2 h-6 w-6 opacity-35"
                       strokeWidth={1.5}
                     />
-                    <p className="opacity-70">Nenhuma anotação encontrada.</p>
-                    <button
+                    <p className="text-neutral-500 dark:text-neutral-400">
+                      Nenhuma anotação encontrada.
+                    </p>
+                    <TextureButton
+                      variant="primary"
+                      size="xs"
+                      className="mt-3"
                       onClick={() => {
                         setWorkMode('comment');
                         setActiveTool('highlight');
                       }}
-                      className="mt-3 rounded bg-[#1B2952] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#2F4D8F]"
                     >
                       Ativar Marca-texto
-                    </button>
+                    </TextureButton>
                   </div>
                 ) : (
                   <div className="space-y-2.5">
-                    <div className="flex items-center justify-between gap-1">
-                      <select
+                    <div className="flex items-center justify-between gap-1.5">
+                      <HaloSelect
                         value={commentFilter}
                         onChange={(e) => setCommentFilter(e.target.value)}
-                        className={`h-7 flex-1 rounded border px-1.5 text-xs ${
-                          darkMode
-                            ? 'border-[#334155] bg-[#111827] text-slate-100'
-                            : 'border-slate-200 bg-white text-slate-800'
-                        }`}
+                        className="h-7 flex-1"
                       >
                         <option value="all">Todos os status ({allAnnotations.length})</option>
                         <option value="approved">Aprovados</option>
                         <option value="rejected">Rejeitados</option>
                         <option value="completed">Concluídos</option>
-                      </select>
-                      <button
+                      </HaloSelect>
+                      <TextureButton
+                        variant="minimal"
+                        size="icon"
                         onClick={() => void exportCommentsSummary()}
                         title="Exportar relatório de comentários"
-                        className="flex h-7 items-center gap-1 rounded border border-slate-500/30 px-2 hover:bg-slate-500/10"
                       >
-                        <Download className="h-3 w-3" strokeWidth={1.5} />
-                      </button>
+                        <Download className="h-3 w-3" strokeWidth={1.6} />
+                      </TextureButton>
                     </div>
 
                     {filteredComments.map((annot) => (
-                      <div
+                      <MinimalCard
                         key={annot.id}
+                        active={tab.selectedAnnotationId === annot.id}
                         onClick={() => {
                           onScrollToPage(annot.pageIndex);
                           updateTabState(tab.tabId, { selectedAnnotationId: annot.id });
                           openRightInspector('auto');
                         }}
-                        className={`cursor-pointer rounded-lg border p-2.5 transition ${
-                          tab.selectedAnnotationId === annot.id
-                            ? 'border-[#1B2952] bg-[#1B2952]/10 dark:border-blue-400'
-                            : darkMode
-                            ? 'border-[#334155] bg-[#262E3D]/60 hover:bg-[#262E3D]'
-                            : 'border-slate-200 bg-white hover:border-slate-300'
-                        }`}
+                        className="cursor-pointer rounded-[12px] p-2.5"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-semibold">
+                          <span className="font-semibold text-neutral-900 dark:text-neutral-100">
                             {describeAnnotType(annot.type)}
                           </span>
-                          <span className="opacity-60 tabular-nums">
+                          <span className="text-[11px] text-neutral-500 tabular-nums dark:text-neutral-400">
                             Pág. {annot.pageIndex + 1}
                           </span>
                         </div>
                         {annot.contents && (
-                          <p className="mt-1 line-clamp-2 opacity-80">{annot.contents}</p>
+                          <p className="mt-1 line-clamp-2 text-neutral-600 dark:text-neutral-300">
+                            {annot.contents}
+                          </p>
                         )}
                         {annot.reviewStatus && annot.reviewStatus !== 'none' && (
-                          <span className="mt-1.5 inline-block rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-300">
+                          <HaloBadge tone="emerald" className="mt-1.5">
                             {annot.reviewStatus === 'approved'
                               ? 'Aprovado'
                               : annot.reviewStatus === 'rejected'
                               ? 'Rejeitado'
                               : 'Concluído'}
-                          </span>
+                          </HaloBadge>
                         )}
-                      </div>
+                      </MinimalCard>
                     ))}
                   </div>
                 )}
@@ -536,28 +539,32 @@ export function LeftNavigationSidebar({
                 {tab.attachments.length === 0 ? (
                   <div className="py-8 text-center">
                     <Paperclip
-                      className="mx-auto mb-2 h-6 w-6 opacity-40"
+                      className="mx-auto mb-2 h-6 w-6 opacity-35"
                       strokeWidth={1.5}
                     />
-                    <p className="opacity-70">Nenhum arquivo embutido neste PDF.</p>
+                    <p className="text-neutral-500 dark:text-neutral-400">
+                      Nenhum arquivo embutido neste PDF.
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {tab.attachments.map((att) => (
-                      <div
+                      <MinimalCard
                         key={att.id}
-                        className={`flex items-center justify-between rounded border p-2 ${
-                          darkMode ? 'border-[#334155] bg-[#262E3D]' : 'border-slate-200 bg-white'
-                        }`}
+                        className="flex items-center justify-between rounded-[12px] p-2.5"
                       >
                         <div className="min-w-0">
-                          <div className="truncate font-medium">{att.name}</div>
-                          <div className="text-[10px] opacity-60">
+                          <div className="truncate font-medium text-neutral-900 dark:text-neutral-100">
+                            {att.name}
+                          </div>
+                          <div className="text-[10px] text-neutral-500 tabular-nums dark:text-neutral-400">
                             {(att.sizeBytes / 1024).toFixed(1)} KB
                           </div>
                         </div>
                         {att.data && (
-                          <button
+                          <TextureButton
+                            variant="minimal"
+                            size="icon"
                             onClick={() =>
                               void platform.fileSystem.exportBlobFile(
                                 att.data!,
@@ -565,13 +572,12 @@ export function LeftNavigationSidebar({
                                 att.mimeType
                               )
                             }
-                            className="rounded p-1 hover:bg-slate-500/15"
                             title="Salvar anexo no disco"
                           >
-                            <Download className="h-3.5 w-3.5" strokeWidth={1.5} />
-                          </button>
+                            <Download className="h-3.5 w-3.5" strokeWidth={1.6} />
+                          </TextureButton>
                         )}
-                      </div>
+                      </MinimalCard>
                     ))}
                   </div>
                 )}
@@ -584,9 +590,7 @@ export function LeftNavigationSidebar({
                 {tab.layers.map((layer) => (
                   <label
                     key={layer.id}
-                    className={`flex cursor-pointer items-center gap-2.5 rounded border p-2.5 ${
-                      darkMode ? 'border-[#334155] bg-[#262E3D]' : 'border-slate-200 bg-white'
-                    }`}
+                    className="flex cursor-pointer items-center gap-2.5 rounded-[10px] border border-black/[0.07] bg-white px-3 py-2 text-neutral-800 shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-colors hover:bg-neutral-50 dark:border-white/[0.08] dark:bg-[#1E1F1E] dark:text-neutral-100 dark:hover:bg-[#252625]"
                   >
                     <input
                       type="checkbox"
@@ -598,7 +602,7 @@ export function LeftNavigationSidebar({
                           ),
                         });
                       }}
-                      className="h-3.5 w-3.5 accent-[#1B2952]"
+                      className="h-3.5 w-3.5 accent-neutral-900 dark:accent-neutral-100"
                     />
                     <span>{layer.name}</span>
                   </label>
@@ -612,32 +616,34 @@ export function LeftNavigationSidebar({
                 {tab.signatures.length === 0 ? (
                   <div className="py-8 text-center">
                     <ShieldCheck
-                      className="mx-auto mb-2 h-6 w-6 opacity-40"
+                      className="mx-auto mb-2 h-6 w-6 opacity-35"
                       strokeWidth={1.5}
                     />
-                    <p className="opacity-70">
+                    <p className="text-neutral-500 dark:text-neutral-400">
                       Este documento não possui assinaturas digitais criptográficas.
                     </p>
-                    <button
+                    <TextureButton
+                      variant="primary"
+                      size="xs"
+                      className="mt-3"
                       onClick={() => {
                         setWorkMode('protect');
                         setActiveTool('signature-visual');
                         openRightInspector('signature');
                       }}
-                      className="mt-3 rounded bg-[#1B2952] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#2F4D8F]"
                     >
                       Assinar documento
-                    </button>
+                    </TextureButton>
                   </div>
                 ) : (
                   <div className="space-y-2.5">
                     {tab.signatures.map((sig) => (
                       <div
                         key={sig.id}
-                        className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3"
+                        className="rounded-[12px] border border-emerald-500/35 bg-emerald-500/10 p-3"
                       >
                         <div className="flex items-center gap-1.5 font-semibold text-emerald-700 dark:text-emerald-300">
-                          <ShieldCheck className="h-4 w-4" strokeWidth={1.5} />
+                          <ShieldCheck className="h-4 w-4" strokeWidth={1.6} />
                           <span>{sig.signerName}</span>
                         </div>
                         <div className="mt-1.5 space-y-1 text-[11px] opacity-85">
@@ -657,7 +663,7 @@ export function LeftNavigationSidebar({
           {/* Alça de Redimensionamento Lateral */}
           <div
             onPointerDown={startResize}
-            className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-[#2F4D8F]/40"
+            className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-[#1A94FF]/40"
           />
         </div>
       )}

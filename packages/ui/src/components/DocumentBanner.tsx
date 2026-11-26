@@ -13,6 +13,7 @@ import {
   type DocumentTabState,
   usePdfStudioStore,
 } from '@pdf-studio/editor-core';
+import { HaloBadge, TextureButton } from './cult/CultUiPrimitives';
 
 export function DocumentBanner({ tab }: { tab: DocumentTabState }) {
   const updateTabState = usePdfStudioStore((s) => s.updateTabState);
@@ -66,38 +67,45 @@ export function DocumentBanner({ tab }: { tab: DocumentTabState }) {
 
   return (
     <div className="z-20 flex shrink-0 flex-col">
-      {/* 1. Banner de Tarjamento Pendente (Vermelho Carmim Semântico) */}
+      {/* 1. Banner de Tarjamento Pendente */}
       {pendingRedactions.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-red-300 bg-red-600 px-3.5 py-1.5 text-xs font-medium text-white">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-red-400/40 bg-red-600 px-3.5 py-1.5 text-xs font-medium text-white shadow-inner">
           <div className="flex items-center gap-2">
-            <ShieldAlert className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+            <ShieldAlert className="h-4 w-4 shrink-0" strokeWidth={1.6} />
             <span>
-              <strong>{pendingRedactions.length}</strong> tarja(s) marcada(s) ainda não foram
-              aplicadas — clique em <strong>Aplicar Tarjamento</strong> para remover os dados
-              permanentemente.
+              <strong className="tabular-nums">{pendingRedactions.length}</strong> tarja(s)
+              marcada(s) ainda não foram aplicadas — clique em{' '}
+              <strong>Aplicar Tarjamento</strong> para remover os dados permanentemente.
             </span>
           </div>
-          <button
+          <TextureButton
+            variant="secondary"
+            size="xs"
             onClick={() => void handleApplyDestructiveRedactions()}
-            className="rounded bg-white px-3 py-1 text-xs font-semibold text-red-700 shadow-sm hover:bg-red-50"
           >
             Aplicar Tarjamento Definitivo
-          </button>
+          </TextureButton>
         </div>
       )}
 
       {/* 2. Banner de Documento Assinado Digitalmente */}
       {tab.signatures.length > 0 && !tab.dismissedSignedBanner && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-300 bg-emerald-50 px-3.5 py-1.5 text-xs text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-500/25 bg-emerald-50/90 px-3.5 py-1.5 text-xs text-emerald-950 dark:border-emerald-500/25 dark:bg-emerald-950/40 dark:text-emerald-200">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" strokeWidth={1.5} />
+            <ShieldCheck
+              className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400"
+              strokeWidth={1.6}
+            />
+            <HaloBadge tone="emerald">ICP-BRASIL · {tab.signatures.length}</HaloBadge>
             <span>
-              Este documento contém <strong>{tab.signatures.length}</strong> assinatura(s)
-              digital(is). Edições destrutivas diretas invalidam o hash criptográfico original.
+              Documento com assinatura digital. Edições destrutivas diretas invalidam o hash
+              criptográfico original.
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <button
+            <TextureButton
+              variant="secondary"
+              size="xs"
               onClick={() => {
                 void openDocumentInTab({
                   fileName: tab.fileName.replace(/\.pdf$/i, '-copia-editavel.pdf'),
@@ -105,14 +113,14 @@ export function DocumentBanner({ tab }: { tab: DocumentTabState }) {
                   markDirty: true,
                 });
               }}
-              className="inline-flex items-center gap-1 rounded bg-emerald-700 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-emerald-800"
             >
-              <CopyPlus className="h-3 w-3" strokeWidth={1.5} />
+              <CopyPlus className="h-3 w-3" strokeWidth={1.6} />
               Criar cópia editável
-            </button>
+            </TextureButton>
             <button
               onClick={() => updateTabState(tab.tabId, { dismissedSignedBanner: true })}
-              className="rounded p-0.5 opacity-70 hover:opacity-100"
+              className="rounded-full p-1 opacity-70 hover:bg-black/10 hover:opacity-100 dark:hover:bg-white/10"
+              title="Dispensar aviso"
             >
               <X className="h-3.5 w-3.5" strokeWidth={1.5} />
             </button>
@@ -122,27 +130,33 @@ export function DocumentBanner({ tab }: { tab: DocumentTabState }) {
 
       {/* 3. Banner de PDF Escaneado Elegível para OCR */}
       {tab.metadata?.isScannedCandidate && !tab.dismissedOcrBanner && (
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-300 bg-amber-50 px-3.5 py-1.5 text-xs text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/25 bg-amber-50/90 px-3.5 py-1.5 text-xs text-amber-950 dark:border-amber-500/25 dark:bg-amber-950/35 dark:text-amber-100">
           <div className="flex items-center gap-2">
-            <ScanText className="h-4 w-4 shrink-0 text-amber-600" strokeWidth={1.5} />
+            <ScanText
+              className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
+              strokeWidth={1.6}
+            />
+            <HaloBadge tone="amber">OCR SUGERIDO</HaloBadge>
             <span>
               Este PDF parece ser uma imagem digitalizada sem texto pesquisável. Deseja executar o
               OCR para torná-lo selecionável?
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <button
+            <TextureButton
+              variant="primary"
+              size="xs"
               onClick={() => {
                 setWorkMode('convert');
                 openRightInspector('ocr');
               }}
-              className="rounded bg-[#1B2952] px-2.5 py-1 text-[11px] font-medium text-white hover:bg-[#2F4D8F]"
             >
               Executar OCR
-            </button>
+            </TextureButton>
             <button
               onClick={() => updateTabState(tab.tabId, { dismissedOcrBanner: true })}
-              className="rounded p-0.5 opacity-70 hover:opacity-100"
+              className="rounded-full p-1 opacity-70 hover:bg-black/10 hover:opacity-100 dark:hover:bg-white/10"
+              title="Dispensar aviso"
             >
               <X className="h-3.5 w-3.5" strokeWidth={1.5} />
             </button>

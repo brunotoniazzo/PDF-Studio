@@ -8,6 +8,11 @@ apps/desktop-windows/release/__uninstaller*
 apps/desktop-windows/release/*.blockmap
 apps/desktop-windows/release/*.yml
 apps/desktop-windows/release/*.yaml
+apps/desktop-windows/release-beta/win-unpacked/
+apps/desktop-windows/release-beta/__uninstaller*
+apps/desktop-windows/release-beta/*.blockmap
+apps/desktop-windows/release-beta/*.yml
+apps/desktop-windows/release-beta/*.yaml
 *.tsbuildinfo
 .DS_Store
 Thumbs.db

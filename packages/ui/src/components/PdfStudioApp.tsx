@@ -18,6 +18,13 @@ import { DocumentViewport, type DocumentViewportHandle } from './DocumentViewpor
 import { RightPropertyInspector } from './RightPropertyInspector';
 import { BottomStatusBar } from './BottomStatusBar';
 import { HomeStartView } from './HomeStartView';
+import {
+  DynamicIslandToast,
+  HaloInput,
+  HaloSelect,
+  PopoverTicketModal,
+  TextureButton,
+} from './cult/CultUiPrimitives';
 
 function PdfStudioInnerShell() {
   const {
@@ -72,7 +79,14 @@ function PdfStudioInnerShell() {
   const [goToPageModalOpen, setGoToPageModalOpen] = useState(false);
   const [goToPageInput, setGoToPageInput] = useState('1');
 
-  // Mapa Completo de Atalhos de Teclado Windows + Adaptação Web (Alt+W, Alt+N, etc.)
+  // Sincroniza classe .dark no elemento raiz <html> para ajustar scrollbars e selects nativos (color-scheme)
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.toggle('dark', darkMode);
+    }
+  }, [darkMode]);
+
+  // Mapa Completo de Atalhos de Teclado Windows + Adaptação Web
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -92,7 +106,7 @@ function PdfStudioInnerShell() {
         return;
       }
 
-      // Novo PDF em branco (Ctrl+N no Desktop ou Alt+N na Web)
+      // Novo PDF em branco (Ctrl+N ou Alt+N)
       if ((ctrl && e.key.toLowerCase() === 'n') || (e.altKey && e.key.toLowerCase() === 'n')) {
         e.preventDefault();
         setNewBlankModalOpen(true);
@@ -271,7 +285,7 @@ function PdfStudioInnerShell() {
           return;
         }
 
-        // Ferramentas Rápidas por Tecla Única (V, H, U, C, T, D)
+        // Ferramentas Rápidas por Tecla Única
         const lower = e.key.toLowerCase();
         if (lower === 'v') setActiveTool('select');
         else if (lower === 'h') setActiveTool('hand');
@@ -365,16 +379,16 @@ function PdfStudioInnerShell() {
     <div
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleGlobalFileDrop}
-      className={`${darkMode ? 'dark' : ''} flex h-screen w-screen flex-col overflow-hidden`}
+      className={`${darkMode ? 'dark' : ''} flex h-screen w-screen flex-col overflow-hidden bg-[#F4F4F5] text-neutral-900 dark:bg-[#111211] dark:text-neutral-100`}
       style={{
         fontFamily:
-          '"Segoe UI Variable", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
+          '"Geist", "Inter", "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
       }}
     >
       {/* ZONA 1: Faixa Superior (Título + Abas Multi-Documento) */}
       <TopTitleTabsBar />
 
-      {/* ZONA 2: Barra de Ferramentas Contextual (Nível 1 + Nível 2) */}
+      {/* ZONA 2: Barra de Ferramentas Contextual (DirectionAwareTabs + CollabToolbar) */}
       <ContextualToolbar
         onOpenNewBlankModal={() => setNewBlankModalOpen(true)}
         onOpenSplitModal={() => setSplitModalOpen(true)}
@@ -384,7 +398,7 @@ function PdfStudioInnerShell() {
       {/* ZONA 3: Banner Dinâmico Contextual do Documento */}
       {activeTabId !== 'home' && activeTab && <DocumentBanner tab={activeTab} />}
 
-      {/* CORPO CENTRAL: Zona 4 (Esquerda) + Zona 5 (Viewport) + Zona 6 (Inspetor Direito) */}
+      {/* CORPO CENTRAL */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {activeTabId === 'home' || !activeTab ? (
           <HomeStartView onRequestNewBlankModal={() => setNewBlankModalOpen(true)} />
@@ -408,324 +422,283 @@ function PdfStudioInnerShell() {
         onFitPage={() => viewportRef.current?.fitPage()}
       />
 
-      {/* MODAL DE PROTEÇÃO DE ALTERAÇÕES NÃO SALVAS AO FECHAR ABA */}
+      {/* MODAL 1: PROTEÇÃO DE ALTERAÇÕES NÃO SALVAS AO FECHAR ABA */}
       {pendingCloseTab && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <div
-            className={`w-full max-w-md rounded-xl border p-5 shadow-2xl ${
-              darkMode
-                ? 'border-[#334155] bg-[#1E2430] text-slate-100'
-                : 'border-slate-200 bg-white text-slate-800'
-            }`}
-          >
-            <h3 className="text-sm font-semibold">Salvar alterações antes de fechar?</h3>
-            <p className="mt-1.5 text-xs opacity-80">
-              O documento <strong>{pendingCloseTab.fileName}</strong> possui modificações não
-              salvas que serão perdidas se você descartá-las.
-            </p>
-            <div className="mt-5 flex justify-end gap-2 text-xs">
-              <button
-                onClick={cancelPendingCloseTab}
-                className="rounded-md border border-slate-500/30 px-3 py-1.5 hover:bg-slate-500/10"
-              >
+        <PopoverTicketModal
+          title="Salvar alterações antes de fechar?"
+          onBackdropClick={cancelPendingCloseTab}
+          footer={
+            <>
+              <TextureButton variant="minimal" size="sm" onClick={cancelPendingCloseTab}>
                 Cancelar
-              </button>
-              <button
+              </TextureButton>
+              <TextureButton
+                variant="destructive"
+                size="sm"
                 onClick={() => void forceCloseTab(pendingCloseTab.tabId)}
-                className="rounded-md bg-red-600 px-3 py-1.5 font-medium text-white hover:bg-red-700"
               >
                 Descartar alterações
-              </button>
-              <button
+              </TextureButton>
+              <TextureButton
+                variant="primary"
+                size="sm"
                 onClick={async () => {
                   const ok = await saveTab(pendingCloseTab.tabId, false);
                   if (ok) await forceCloseTab(pendingCloseTab.tabId);
                 }}
-                className="rounded-md bg-[#1B2952] px-3.5 py-1.5 font-medium text-white hover:bg-[#2F4D8F]"
               >
                 Salvar
-              </button>
-            </div>
-          </div>
-        </div>
+              </TextureButton>
+            </>
+          }
+        >
+          <p className="leading-relaxed text-neutral-600 dark:text-neutral-300">
+            O documento <strong className="text-neutral-900 dark:text-neutral-100">{pendingCloseTab.fileName}</strong> possui modificações não
+            salvas que serão perdidas se você descartá-las.
+          </p>
+        </PopoverTicketModal>
       )}
 
-      {/* MODAL: CRIAR PDF EM BRANCO */}
+      {/* MODAL 2: CRIAR PDF EM BRANCO */}
       {newBlankModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <div
-            className={`w-full max-w-sm rounded-xl border p-5 text-xs shadow-2xl ${
-              darkMode
-                ? 'border-[#334155] bg-[#1E2430] text-slate-100'
-                : 'border-slate-200 bg-white text-slate-800'
-            }`}
-          >
-            <h3 className="text-sm font-semibold">Criar Novo PDF em Branco</h3>
-            <div className="mt-3 space-y-3">
-              <div>
-                <label className="mb-1 block opacity-75">Formato do Papel</label>
-                <select
-                  value={blankOptions.preset}
-                  onChange={(e) =>
-                    setBlankOptions({
-                      ...blankOptions,
-                      preset: e.target.value as BlankPageOptions['preset'],
-                    })
-                  }
-                  className={`h-8 w-full rounded border px-2 ${
-                    darkMode ? 'border-[#334155] bg-[#111827]' : 'border-slate-200 bg-slate-50'
-                  }`}
-                >
-                  <option value="A4">A4 (210 × 297 mm)</option>
-                  <option value="Letter">Carta (216 × 279 mm)</option>
-                  <option value="A3">A3 (297 × 420 mm)</option>
-                  <option value="Legal">Ofício (216 × 356 mm)</option>
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="mb-1 block opacity-75">Orientação</label>
-                  <select
-                    value={blankOptions.orientation}
-                    onChange={(e) =>
-                      setBlankOptions({
-                        ...blankOptions,
-                        orientation: e.target.value as BlankPageOptions['orientation'],
-                      })
-                    }
-                    className={`h-8 w-full rounded border px-2 ${
-                      darkMode ? 'border-[#334155] bg-[#111827]' : 'border-slate-200 bg-slate-50'
-                    }`}
-                  >
-                    <option value="portrait">Retrato</option>
-                    <option value="landscape">Paisagem</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block opacity-75">Páginas</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={blankOptions.pageCount}
-                    onChange={(e) =>
-                      setBlankOptions({
-                        ...blankOptions,
-                        pageCount: Math.max(1, Number(e.target.value) || 1),
-                      })
-                    }
-                    className={`h-8 w-full rounded border px-2 ${
-                      darkMode ? 'border-[#334155] bg-[#111827]' : 'border-slate-200 bg-slate-50'
-                    }`}
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
+        <PopoverTicketModal
+          title="Criar Novo PDF em Branco"
+          subtitle="Defina as dimensões físicas iniciais e a quantidade de páginas."
+          maxWidthClass="max-w-sm"
+          onBackdropClick={() => setNewBlankModalOpen(false)}
+          footer={
+            <>
+              <TextureButton
+                variant="minimal"
+                size="sm"
                 onClick={() => setNewBlankModalOpen(false)}
-                className="rounded border border-slate-500/30 px-3 py-1.5 hover:bg-slate-500/10"
               >
                 Cancelar
-              </button>
-              <button
+              </TextureButton>
+              <TextureButton
+                variant="primary"
+                size="sm"
                 onClick={() => {
                   setNewBlankModalOpen(false);
                   void createNewBlankDocument(blankOptions);
                 }}
-                className="rounded bg-[#1B2952] px-4 py-1.5 font-medium text-white hover:bg-[#2F4D8F]"
               >
                 Criar Documento
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: DIVIDIR / EXTRAIR PÁGINAS */}
-      {splitModalOpen && activeTab && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <div
-            className={`w-full max-w-sm rounded-xl border p-5 text-xs shadow-2xl ${
-              darkMode
-                ? 'border-[#334155] bg-[#1E2430] text-slate-100'
-                : 'border-slate-200 bg-white text-slate-800'
-            }`}
-          >
-            <h3 className="text-sm font-semibold">Dividir ou Extrair Páginas</h3>
-            <div className="mt-3 space-y-3">
-              <select
-                value={splitMode}
-                onChange={(e) => setSplitMode(e.target.value as SplitOptions['mode'])}
-                className={`h-8 w-full rounded border px-2 ${
-                  darkMode ? 'border-[#334155] bg-[#111827]' : 'border-slate-200 bg-slate-50'
-                }`}
+              </TextureButton>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            <div>
+              <label className="mb-1 block text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                Formato do Papel
+              </label>
+              <HaloSelect
+                value={blankOptions.preset}
+                onChange={(e) =>
+                  setBlankOptions({
+                    ...blankOptions,
+                    preset: e.target.value as BlankPageOptions['preset'],
+                  })
+                }
               >
-                <option value="range">Por intervalo de páginas (ex: 1-2, 4)</option>
-                <option value="every-n">Dividir a cada N páginas</option>
-                <option value="extract-selected">Extrair páginas selecionadas</option>
-              </select>
-
-              {splitMode === 'range' && (
-                <input
-                  type="text"
-                  value={splitRange}
-                  onChange={(e) => setSplitRange(e.target.value)}
-                  placeholder="Ex: 1-2, 4"
-                  className={`h-8 w-full rounded border px-2 ${
-                    darkMode ? 'border-[#334155] bg-[#111827]' : 'border-slate-200 bg-slate-50'
-                  }`}
-                />
-              )}
-
-              {splitMode === 'every-n' && (
-                <input
+                <option value="A4">A4 (210 × 297 mm)</option>
+                <option value="Letter">Carta (216 × 279 mm)</option>
+                <option value="A3">A3 (297 × 420 mm)</option>
+                <option value="Legal">Ofício (216 × 356 mm)</option>
+              </HaloSelect>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label className="mb-1 block text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                  Orientação
+                </label>
+                <HaloSelect
+                  value={blankOptions.orientation}
+                  onChange={(e) =>
+                    setBlankOptions({
+                      ...blankOptions,
+                      orientation: e.target.value as BlankPageOptions['orientation'],
+                    })
+                  }
+                >
+                  <option value="portrait">Retrato</option>
+                  <option value="landscape">Paisagem</option>
+                </HaloSelect>
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                  Páginas
+                </label>
+                <HaloInput
                   type="number"
                   min={1}
-                  max={activeTab.geometries.length}
-                  value={splitEveryN}
-                  onChange={(e) => setSplitEveryN(Math.max(1, Number(e.target.value) || 1))}
-                  className={`h-8 w-full rounded border px-2 ${
-                    darkMode ? 'border-[#334155] bg-[#111827]' : 'border-slate-200 bg-slate-50'
-                  }`}
+                  max={100}
+                  value={blankOptions.pageCount}
+                  onChange={(e) =>
+                    setBlankOptions({
+                      ...blankOptions,
+                      pageCount: Math.max(1, Number(e.target.value) || 1),
+                    })
+                  }
+                  className="tabular-nums"
                 />
-              )}
+              </div>
             </div>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
+          </div>
+        </PopoverTicketModal>
+      )}
+
+      {/* MODAL 3: DIVIDIR / EXTRAIR PÁGINAS */}
+      {splitModalOpen && activeTab && (
+        <PopoverTicketModal
+          title="Dividir ou Extrair Páginas"
+          maxWidthClass="max-w-sm"
+          onBackdropClick={() => setSplitModalOpen(false)}
+          footer={
+            <>
+              <TextureButton
+                variant="minimal"
+                size="sm"
                 onClick={() => setSplitModalOpen(false)}
-                className="rounded border border-slate-500/30 px-3 py-1.5 hover:bg-slate-500/10"
               >
                 Cancelar
-              </button>
-              <button
+              </TextureButton>
+              <TextureButton
+                variant="primary"
+                size="sm"
                 onClick={() => void handleExecuteSplit()}
-                className="rounded bg-[#1B2952] px-4 py-1.5 font-medium text-white hover:bg-[#2F4D8F]"
               >
                 Extrair em Novas Abas
-              </button>
-            </div>
+              </TextureButton>
+            </>
+          }
+        >
+          <div className="space-y-3">
+            <HaloSelect
+              value={splitMode}
+              onChange={(e) => setSplitMode(e.target.value as SplitOptions['mode'])}
+            >
+              <option value="range">Por intervalo de páginas (ex: 1-2, 4)</option>
+              <option value="every-n">Dividir a cada N páginas</option>
+              <option value="extract-selected">Extrair páginas selecionadas</option>
+            </HaloSelect>
+
+            {splitMode === 'range' && (
+              <HaloInput
+                type="text"
+                value={splitRange}
+                onChange={(e) => setSplitRange(e.target.value)}
+                placeholder="Ex: 1-2, 4…"
+              />
+            )}
+
+            {splitMode === 'every-n' && (
+              <HaloInput
+                type="number"
+                min={1}
+                max={activeTab.geometries.length}
+                value={splitEveryN}
+                onChange={(e) => setSplitEveryN(Math.max(1, Number(e.target.value) || 1))}
+                className="tabular-nums"
+              />
+            )}
           </div>
-        </div>
+        </PopoverTicketModal>
       )}
 
-      {/* MODAL: PROPRIEDADES TÉCNICAS DO DOCUMENTO (Ctrl+D) */}
+      {/* MODAL 4: PROPRIEDADES TÉCNICAS DO DOCUMENTO (Ctrl+D) */}
       {propertiesModalOpen && activeTab && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <div
-            className={`w-full max-w-md rounded-xl border p-5 text-xs shadow-2xl ${
-              darkMode
-                ? 'border-[#334155] bg-[#1E2430] text-slate-100'
-                : 'border-slate-200 bg-white text-slate-800'
-            }`}
-          >
-            <h3 className="text-sm font-semibold">Inspetor Técnico — Propriedades do PDF</h3>
-            <div className="mt-3 space-y-2 rounded-lg border border-slate-500/20 p-3">
-              {[
-                ['Arquivo', activeTab.fileName],
-                ['Título', activeTab.metadata?.title || '—'],
-                ['Autor', activeTab.metadata?.author || '—'],
-                ['Assunto', activeTab.metadata?.subject || '—'],
-                ['Criador', activeTab.metadata?.creator || '—'],
-                ['Produtor', activeTab.metadata?.producer || '—'],
-                ['Versão ISO PDF', activeTab.metadata?.pdfVersion || '1.7'],
-                ['Total de Páginas', String(activeTab.geometries.length)],
-                [
-                  'Tamanho em Memória',
-                  `${(activeTab.bytes.byteLength / 1024).toFixed(1)} KB`,
-                ],
-                [
-                  'Criptografado',
-                  activeTab.metadata?.isEncrypted ? 'Sim (AES)' : 'Não',
-                ],
-                [
-                  'Formulário AcroForm',
-                  activeTab.metadata?.hasAcroForm ? 'Presente' : 'Ausente',
-                ],
-              ].map(([k, v]) => (
-                <div key={k} className="flex justify-between gap-4">
-                  <span className="opacity-65">{k}:</span>
-                  <span className="truncate font-medium">{v}</span>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 flex justify-end">
-              <button
-                onClick={() => setPropertiesModalOpen(false)}
-                className="rounded bg-[#1B2952] px-4 py-1.5 font-medium text-white hover:bg-[#2F4D8F]"
-              >
-                Fechar
-              </button>
-            </div>
+        <PopoverTicketModal
+          title="Inspetor Técnico — Propriedades do PDF"
+          onBackdropClick={() => setPropertiesModalOpen(false)}
+          footer={
+            <TextureButton
+              variant="primary"
+              size="sm"
+              onClick={() => setPropertiesModalOpen(false)}
+            >
+              Fechar
+            </TextureButton>
+          }
+        >
+          <div className="space-y-2 rounded-[10px] border border-black/[0.08] bg-neutral-50 p-3 dark:border-white/[0.08] dark:bg-[#111211]">
+            {[
+              ['Arquivo', activeTab.fileName],
+              ['Título', activeTab.metadata?.title || '—'],
+              ['Autor', activeTab.metadata?.author || '—'],
+              ['Assunto', activeTab.metadata?.subject || '—'],
+              ['Criador', activeTab.metadata?.creator || '—'],
+              ['Produtor', activeTab.metadata?.producer || '—'],
+              ['Versão ISO PDF', activeTab.metadata?.pdfVersion || '1.7'],
+              ['Total de Páginas', String(activeTab.geometries.length)],
+              [
+                'Tamanho em Memória',
+                `${(activeTab.bytes.byteLength / 1024).toFixed(1)}\u00A0KB`,
+              ],
+              [
+                'Criptografado',
+                activeTab.metadata?.isEncrypted ? 'Sim (AES)' : 'Não',
+              ],
+              [
+                'Formulário AcroForm',
+                activeTab.metadata?.hasAcroForm ? 'Presente' : 'Ausente',
+              ],
+            ].map(([k, v]) => (
+              <div key={k} className="flex justify-between gap-4">
+                <span className="text-neutral-500 dark:text-neutral-400">{k}:</span>
+                <span className="truncate font-medium tabular-nums text-neutral-900 dark:text-neutral-100">
+                  {v}
+                </span>
+              </div>
+            ))}
           </div>
-        </div>
+        </PopoverTicketModal>
       )}
 
-      {/* MODAL: IR PARA PÁGINA (Ctrl+G) */}
+      {/* MODAL 5: IR PARA PÁGINA (Ctrl+G) */}
       {goToPageModalOpen && activeTab && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              const num = parseInt(goToPageInput, 10);
-              if (!Number.isNaN(num)) {
-                viewportRef.current?.scrollToPage(num - 1);
-              }
-              setGoToPageModalOpen(false);
-            }}
-            className={`w-full max-w-xs rounded-xl border p-4 text-xs shadow-2xl ${
-              darkMode
-                ? 'border-[#334155] bg-[#1E2430] text-slate-100'
-                : 'border-slate-200 bg-white text-slate-800'
-            }`}
-          >
-            <h3 className="text-sm font-semibold">Ir para Página</h3>
-            <input
-              autoFocus
-              type="number"
-              min={1}
-              max={activeTab.geometries.length}
-              value={goToPageInput}
-              onChange={(e) => setGoToPageInput(e.target.value)}
-              className={`mt-2.5 h-8 w-full rounded border px-2 tabular-nums ${
-                darkMode ? 'border-[#334155] bg-[#111827]' : 'border-slate-200 bg-slate-50'
-              }`}
-            />
-            <div className="mt-3 flex justify-end gap-2">
-              <button
-                type="button"
+        <PopoverTicketModal
+          title="Ir para Página"
+          maxWidthClass="max-w-xs"
+          onBackdropClick={() => setGoToPageModalOpen(false)}
+          asFormOnSubmit={(e) => {
+            e.preventDefault();
+            const num = parseInt(goToPageInput, 10);
+            if (!Number.isNaN(num)) {
+              viewportRef.current?.scrollToPage(num - 1);
+            }
+            setGoToPageModalOpen(false);
+          }}
+          footer={
+            <>
+              <TextureButton
+                variant="minimal"
+                size="xs"
                 onClick={() => setGoToPageModalOpen(false)}
-                className="rounded px-3 py-1 hover:bg-slate-500/10"
               >
                 Cancelar
-              </button>
-              <button
-                type="submit"
-                className="rounded bg-[#1B2952] px-3 py-1 font-medium text-white"
-              >
+              </TextureButton>
+              <TextureButton type="submit" variant="primary" size="xs">
                 Ir
-              </button>
-            </div>
-          </form>
-        </div>
+              </TextureButton>
+            </>
+          }
+        >
+          <HaloInput
+            autoFocus
+            type="number"
+            min={1}
+            max={activeTab.geometries.length}
+            value={goToPageInput}
+            onChange={(e) => setGoToPageInput(e.target.value)}
+            className="tabular-nums"
+          />
+        </PopoverTicketModal>
       )}
 
-      {/* NOTIFICAÇÃO DISCRETA (TOAST) */}
-      {toast && (
-        <div
-          className={`fixed bottom-10 right-5 z-50 rounded-lg border px-4 py-2.5 text-xs font-medium shadow-xl transition-all ${
-            toast.tone === 'error'
-              ? 'border-red-500/40 bg-red-600 text-white'
-              : toast.tone === 'warning'
-              ? 'border-amber-500/40 bg-amber-600 text-white'
-              : toast.tone === 'success'
-              ? 'border-emerald-500/40 bg-emerald-700 text-white'
-              : 'border-slate-600 bg-[#1B2952] text-white'
-          }`}
-        >
-          {toast.text}
-        </div>
-      )}
+      {/* CÁPSULA DYNAMIC ISLAND DE NOTIFICAÇÃO */}
+      {toast && <DynamicIslandToast text={toast.text} tone={toast.tone} />}
     </div>
   );
 }

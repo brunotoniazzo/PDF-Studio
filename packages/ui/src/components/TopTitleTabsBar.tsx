@@ -13,12 +13,18 @@ import {
   Moon,
   Plus,
   ShieldCheck,
-  Square,
   Sun,
   X,
 } from 'lucide-react';
 import { usePdfStudioStore } from '@pdf-studio/editor-core';
 import { usePlatformActions } from '../context/PlatformContext';
+import {
+  CultBrandMark,
+  FloatingPanelSurface,
+  HaloInput,
+  NeumorphEyebrow,
+  TextureSeparator,
+} from './cult/CultUiPrimitives';
 
 export function TopTitleTabsBar() {
   const { platform, openPdfFromDisk } = usePlatformActions();
@@ -70,22 +76,21 @@ export function TopTitleTabsBar() {
 
   return (
     <header
-      className={`relative z-40 flex h-[38px] shrink-0 select-none items-center border-b px-1.5 ${
-        darkMode
-          ? 'border-[#334155] bg-[#1E2430] text-slate-200'
-          : 'border-[#E2E8F0] bg-[#F8FAFC] text-slate-700'
-      }`}
+      className="relative z-40 flex h-[40px] shrink-0 select-none items-center border-b border-black/[0.08] bg-[#F4F4F5] px-2 text-neutral-700 dark:border-white/[0.08] dark:bg-[#111211] dark:text-neutral-200"
       style={dragStyle}
     >
-      {/* Identidade do aplicativo (arrastável como parte da barra de título) */}
-      <div className="flex h-full shrink-0 items-center gap-1.5 px-2 text-xs font-bold tracking-tight text-[#1B2952] dark:text-blue-400">
-        <div className="flex h-5 w-5 items-center justify-center rounded bg-[#1B2952] text-[10px] font-extrabold text-white">
-          PDF
+      {/* Identidade Cult UI do aplicativo */}
+      <div className="flex h-full shrink-0 items-center gap-2 pl-1 pr-2.5">
+        <CultBrandMark />
+        <div className="hidden items-center gap-1.5 sm:flex">
+          <span className="text-xs font-semibold tracking-tight text-neutral-900 dark:text-neutral-50">
+            PDF Studio
+          </span>
+          <NeumorphEyebrow tone="crimson">BETA</NeumorphEyebrow>
         </div>
-        <span className="hidden sm:inline">Studio</span>
       </div>
 
-      {/* Faixa de abas: ocupa apenas o espaço das abas abertas e rola quando necessário */}
+      {/* Faixa de abas: compacta até o limite do conteúdo, mantendo região arrastável livre */}
       <div
         data-testid="titlebar-tabs-strip"
         onWheel={(e) => {
@@ -93,24 +98,20 @@ export function TopTitleTabsBar() {
             e.currentTarget.scrollLeft += e.deltaY;
           }
         }}
-        className="flex h-full min-w-0 shrink items-end gap-0.5 overflow-x-auto pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex h-full min-w-0 shrink items-end gap-1 overflow-x-auto pt-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         style={noDragStyle}
       >
         {/* Aba Fixa Início */}
         <button
           onClick={() => setActiveTab('home')}
           title="Tela Inicial — Documentos Recentes e Ações Rápidas"
-          className={`flex h-[31px] shrink-0 items-center gap-1.5 rounded-t-md border-x border-t px-3 text-xs font-medium transition ${
+          className={`flex h-[32px] shrink-0 items-center gap-1.5 rounded-t-[10px] border-x border-t px-3 text-xs font-medium transition-[background-color,color,box-shadow,border-color] duration-150 ${
             activeTabId === 'home'
-              ? darkMode
-                ? 'border-[#334155] bg-[#262E3D] text-white shadow-sm'
-                : 'border-[#E2E8F0] bg-white text-[#1B2952] shadow-sm'
-              : darkMode
-              ? 'border-transparent text-slate-400 hover:bg-[#262E3D]/60 hover:text-slate-200'
-              : 'border-transparent text-slate-500 hover:bg-slate-200/60 hover:text-slate-800'
+              ? 'border-black/[0.08] bg-white text-neutral-950 shadow-[0_1px_0_#ffffff_inset] dark:border-white/[0.09] dark:bg-[#1C1D1C] dark:text-white dark:shadow-[0_1px_0_rgba(255,255,255,0.06)_inset]'
+              : 'border-transparent text-neutral-500 hover:bg-neutral-200/70 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-[#1E1F1E]/70 dark:hover:text-neutral-100'
           }`}
         >
-          <Home className="h-3.5 w-3.5" strokeWidth={1.5} />
+          <Home className="h-3.5 w-3.5" strokeWidth={1.6} />
           <span>Início</span>
         </button>
 
@@ -143,24 +144,24 @@ export function TopTitleTabsBar() {
                 setContextMenu({ tabId: tab.tabId, x: e.clientX, y: e.clientY });
               }}
               title={tooltip}
-              className={`group relative flex h-[31px] min-w-[120px] max-w-[215px] cursor-pointer items-center justify-between gap-1.5 rounded-t-md border-x border-t px-2.5 text-xs transition ${
+              className={`group relative flex h-[32px] min-w-[126px] max-w-[220px] cursor-pointer items-center justify-between gap-1.5 rounded-t-[10px] border-x border-t px-2.5 text-xs transition-[background-color,color,box-shadow,border-color] duration-150 ${
                 isActive
-                  ? darkMode
-                    ? 'border-[#334155] border-t-2 border-t-[#60A5FA] bg-[#262E3D] font-medium text-white'
-                    : 'border-[#E2E8F0] border-t-2 border-t-[#1B2952] bg-white font-medium text-[#1B2952]'
-                  : darkMode
-                  ? 'border-transparent text-slate-400 hover:bg-[#262E3D]/50 hover:text-slate-200'
-                  : 'border-transparent text-slate-600 hover:bg-slate-200/60 hover:text-slate-900'
+                  ? 'border-black/[0.08] bg-white font-medium text-neutral-950 shadow-[0_1px_0_#ffffff_inset] dark:border-white/[0.09] dark:bg-[#1C1D1C] dark:text-white dark:shadow-[0_1px_0_rgba(255,255,255,0.06)_inset]'
+                  : 'border-transparent text-neutral-500 hover:bg-neutral-200/70 hover:text-neutral-900 dark:text-neutral-400 dark:hover:bg-[#1E1F1E]/70 dark:hover:text-neutral-100'
               }`}
             >
+              {isActive && (
+                <span className="pointer-events-none absolute inset-x-3 top-0 h-[2px] rounded-b-full bg-neutral-900 dark:bg-neutral-100" />
+              )}
+
               <div className="flex min-w-0 items-center gap-1.5">
-                <FileText className="h-3.5 w-3.5 shrink-0 opacity-75" strokeWidth={1.5} />
+                <FileText className="h-3.5 w-3.5 shrink-0 opacity-75" strokeWidth={1.6} />
                 <span className="truncate">{tab.fileName}</span>
                 {tab.metadata?.isEncrypted && (
-                  <Lock className="h-3 w-3 shrink-0 text-amber-500" strokeWidth={1.5} />
+                  <Lock className="h-3 w-3 shrink-0 text-amber-500" strokeWidth={1.6} />
                 )}
                 {tab.signatures.length > 0 && (
-                  <ShieldCheck className="h-3 w-3 shrink-0 text-emerald-500" strokeWidth={1.5} />
+                  <ShieldCheck className="h-3 w-3 shrink-0 text-emerald-500" strokeWidth={1.6} />
                 )}
               </div>
 
@@ -170,19 +171,19 @@ export function TopTitleTabsBar() {
                   requestCloseTab(tab.tabId);
                 }}
                 title={`Fechar aba (${closeShortcutHint})`}
-                className="flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-slate-500/20"
+                className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-neutral-500/20"
               >
                 {tab.isDirty ? (
                   <>
-                    <span className="h-2 w-2 rounded-full bg-[#1B2952] group-hover:hidden dark:bg-[#60A5FA]" />
-                    <X className="hidden h-3 w-3 group-hover:block" strokeWidth={1.5} />
+                    <span className="h-2 w-2 rounded-full bg-red-600 group-hover:hidden dark:bg-red-400" />
+                    <X className="hidden h-3 w-3 group-hover:block" strokeWidth={1.6} />
                   </>
                 ) : (
                   <X
                     className={`h-3 w-3 ${
                       isActive ? 'opacity-80' : 'opacity-0 group-hover:opacity-80'
                     }`}
-                    strokeWidth={1.5}
+                    strokeWidth={1.6}
                   />
                 )}
               </button>
@@ -196,12 +197,12 @@ export function TopTitleTabsBar() {
         onClick={() => void openPdfFromDisk(true)}
         title="Abrir novo PDF em aba (Ctrl+O)"
         style={noDragStyle}
-        className="mb-1 ml-0.5 flex h-6 w-6 shrink-0 items-center justify-center self-end rounded hover:bg-slate-500/15"
+        className="mb-1 ml-1 flex h-6 w-6 shrink-0 items-center justify-center self-end rounded-full border border-black/10 bg-white/80 text-neutral-700 shadow-[0_1px_2px_rgba(0,0,0,0.06)] transition-[background-color,transform] duration-120 hover:bg-white active:scale-95 dark:border-white/10 dark:bg-[#222322] dark:text-neutral-200 dark:hover:bg-[#2A2B2A]"
       >
-        <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
+        <Plus className="h-3.5 w-3.5" strokeWidth={1.7} />
       </button>
 
-      {/* Área livre arrastável da janela no Desktop (expande por todo espaço vazio) */}
+      {/* Área livre arrastável da janela no Desktop */}
       <div
         data-testid="titlebar-drag-region"
         style={dragStyle}
@@ -218,31 +219,24 @@ export function TopTitleTabsBar() {
                 setOverflowOpen((v) => !v);
               }}
               title="Listar todas as abas abertas"
-              className="flex h-6 w-6 items-center justify-center rounded hover:bg-slate-500/15"
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-black/[0.06] bg-white/70 hover:bg-white dark:border-white/[0.08] dark:bg-[#1E1F1E] dark:hover:bg-[#282928]"
             >
-              <ChevronDown className="h-3.5 w-3.5" strokeWidth={1.5} />
+              <ChevronDown className="h-3.5 w-3.5" strokeWidth={1.6} />
             </button>
             {overflowOpen && (
-              <div
+              <FloatingPanelSurface
                 onClick={(e) => e.stopPropagation()}
-                className={`absolute right-0 top-8 z-50 w-64 rounded-lg border p-2 shadow-xl ${
-                  darkMode
-                    ? 'border-[#334155] bg-[#1E2430] text-slate-100'
-                    : 'border-slate-200 bg-white text-slate-800'
-                }`}
+                className="absolute right-0 top-9 z-50 w-64"
+                innerClassName="p-2"
               >
-                <input
+                <HaloInput
                   type="text"
                   value={overflowSearch}
                   onChange={(e) => setOverflowSearch(e.target.value)}
-                  placeholder="Filtrar abas abertas..."
-                  className={`mb-1.5 h-7 w-full rounded border px-2 text-xs outline-none ${
-                    darkMode
-                      ? 'border-[#334155] bg-[#111827]'
-                      : 'border-slate-200 bg-slate-50'
-                  }`}
+                  placeholder="Filtrar abas abertas…"
+                  className="mb-2 h-7"
                 />
-                <div className="max-h-56 overflow-y-auto">
+                <div className="max-h-56 space-y-0.5 overflow-y-auto">
                   {tabs
                     .filter((t) =>
                       t.fileName.toLowerCase().includes(overflowSearch.toLowerCase())
@@ -254,10 +248,10 @@ export function TopTitleTabsBar() {
                           setActiveTab(t.tabId);
                           setOverflowOpen(false);
                         }}
-                        className={`flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-xs ${
+                        className={`flex w-full items-center justify-between rounded-[7px] px-2.5 py-1.5 text-left text-xs transition-colors ${
                           activeTabId === t.tabId
-                            ? 'bg-[#1B2952] text-white'
-                            : 'hover:bg-slate-500/10'
+                            ? 'bg-neutral-900 font-medium text-white dark:bg-neutral-100 dark:text-neutral-950'
+                            : 'hover:bg-neutral-100 dark:hover:bg-[#232423]'
                         }`}
                       >
                         <span className="truncate">{t.fileName}</span>
@@ -267,7 +261,7 @@ export function TopTitleTabsBar() {
                       </button>
                     ))}
                 </div>
-              </div>
+              </FloatingPanelSurface>
             )}
           </div>
         )}
@@ -279,12 +273,12 @@ export function TopTitleTabsBar() {
               ? 'Alternar para Modo Claro da Interface'
               : 'Alternar para Modo Escuro da Interface'
           }
-          className="flex h-6 w-6 items-center justify-center rounded hover:bg-slate-500/15"
+          className="flex h-7 w-7 items-center justify-center rounded-full border border-black/[0.06] bg-white/75 text-neutral-700 shadow-[0_1px_1px_rgba(0,0,0,0.04)] transition-[background-color,transform] duration-120 hover:bg-white active:scale-95 dark:border-white/[0.08] dark:bg-[#1E1F1E] dark:text-neutral-200 dark:hover:bg-[#282928]"
         >
           {darkMode ? (
-            <Sun className="h-3.5 w-3.5 text-amber-400" strokeWidth={1.5} />
+            <Sun className="h-3.5 w-3.5 text-amber-400" strokeWidth={1.6} />
           ) : (
-            <Moon className="h-3.5 w-3.5" strokeWidth={1.5} />
+            <Moon className="h-3.5 w-3.5" strokeWidth={1.6} />
           )}
         </button>
 
@@ -294,7 +288,7 @@ export function TopTitleTabsBar() {
             <button
               onClick={() => void platform.windowControls.minimize()}
               title="Minimizar"
-              className="flex h-full w-10 items-center justify-center hover:bg-slate-500/15"
+              className="flex h-full w-10 items-center justify-center rounded-md transition-colors hover:bg-neutral-500/15"
             >
               <Minus className="h-3.5 w-3.5" strokeWidth={1.5} />
             </button>
@@ -304,7 +298,7 @@ export function TopTitleTabsBar() {
                 setIsMaximized(max);
               }}
               title={isMaximized ? 'Restaurar tamanho' : 'Maximizar'}
-              className="flex h-full w-10 items-center justify-center hover:bg-slate-500/15"
+              className="flex h-full w-10 items-center justify-center rounded-md transition-colors hover:bg-neutral-500/15"
             >
               {isMaximized ? (
                 <Minimize2 className="h-3.5 w-3.5" strokeWidth={1.5} />
@@ -315,7 +309,7 @@ export function TopTitleTabsBar() {
             <button
               onClick={() => void platform.windowControls.close()}
               title="Fechar aplicativo"
-              className="flex h-full w-11 items-center justify-center hover:bg-red-600 hover:text-white"
+              className="flex h-full w-11 items-center justify-center rounded-md transition-colors hover:bg-red-600 hover:text-white"
             >
               <X className="h-4 w-4" strokeWidth={1.5} />
             </button>
@@ -325,31 +319,28 @@ export function TopTitleTabsBar() {
 
       {/* Menu de Contexto da Aba */}
       {contextMenu && contextTab && (
-        <div
+        <FloatingPanelSurface
           onClick={(e) => e.stopPropagation()}
           style={{ left: contextMenu.x, top: contextMenu.y, ...noDragStyle }}
-          className={`fixed z-50 w-56 rounded-lg border py-1 text-xs shadow-xl ${
-            darkMode
-              ? 'border-[#334155] bg-[#1E2430] text-slate-100'
-              : 'border-slate-200 bg-white text-slate-800'
-          }`}
+          className="fixed z-50 w-60"
+          innerClassName="py-1 text-xs"
         >
           <button
             onClick={() => {
               requestCloseTab(contextTab.tabId);
               setContextMenu(null);
             }}
-            className="flex w-full items-center justify-between px-3 py-1.5 hover:bg-slate-500/10"
+            className="flex w-full items-center justify-between px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-[#232423]"
           >
             <span>Fechar aba</span>
-            <span className="opacity-50">{closeShortcutHint}</span>
+            <span className="font-mono text-[10px] opacity-55">{closeShortcutHint}</span>
           </button>
           <button
             onClick={() => {
               void closeOtherTabs(contextTab.tabId);
               setContextMenu(null);
             }}
-            className="flex w-full items-center px-3 py-1.5 hover:bg-slate-500/10"
+            className="flex w-full items-center px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-[#232423]"
           >
             Fechar outras abas
           </button>
@@ -358,18 +349,18 @@ export function TopTitleTabsBar() {
               void closeTabsToRight(contextTab.tabId);
               setContextMenu(null);
             }}
-            className="flex w-full items-center px-3 py-1.5 hover:bg-slate-500/10"
+            className="flex w-full items-center px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-[#232423]"
           >
             Fechar abas à direita
           </button>
-          <div className="my-1 border-t border-slate-500/20" />
+          <TextureSeparator className="my-1" />
           <button
             onClick={() => {
               toggleSplitView(contextTab.tabId);
               setActiveTab(contextTab.tabId);
               setContextMenu(null);
             }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-slate-500/10"
+            className="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-[#232423]"
           >
             <Columns2 className="h-3.5 w-3.5" strokeWidth={1.5} />
             <span>
@@ -384,7 +375,7 @@ export function TopTitleTabsBar() {
                 void platform.fileSystem.revealInExplorer!(contextTab.filePath!);
                 setContextMenu(null);
               }}
-              className="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-slate-500/10"
+              className="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-[#232423]"
             >
               <FolderOpen className="h-3.5 w-3.5" strokeWidth={1.5} />
               <span>Abrir local no Explorer</span>
@@ -396,12 +387,12 @@ export function TopTitleTabsBar() {
               showToast('Caminho/nome copiado para a área de transferência.', 'info');
               setContextMenu(null);
             }}
-            className="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-slate-500/10"
+            className="flex w-full items-center gap-2 px-3 py-1.5 hover:bg-neutral-100 dark:hover:bg-[#232423]"
           >
             <Copy className="h-3.5 w-3.5" strokeWidth={1.5} />
             <span>Copiar caminho/nome</span>
           </button>
-        </div>
+        </FloatingPanelSurface>
       )}
     </header>
   );

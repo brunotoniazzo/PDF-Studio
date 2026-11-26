@@ -7,6 +7,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appDir = path.resolve(__dirname, '..');
 const rootDir = path.resolve(appDir, '../..');
 
+const isBeta = process.argv.includes('--beta');
+const productName = isBeta ? 'PDF Studio Beta' : 'PDF Studio';
+const originalFilename = isBeta ? 'PDF Studio Beta.exe' : 'PDF Studio.exe';
+const fileVersion = isBeta ? '2.0.0.0' : '1.0.0';
+
 const sourceElectronDist = path.join(rootDir, 'node_modules', 'electron', 'dist');
 const targetElectronDist = path.join(appDir, '.electron-dist');
 const rceditBin = path.join(rootDir, 'node_modules', 'rcedit', 'bin', 'rcedit-x64.exe');
@@ -33,29 +38,31 @@ const rceditArgs = [
   iconPath,
   '--set-version-string',
   'ProductName',
-  'PDF Studio',
+  productName,
   '--set-version-string',
   'FileDescription',
-  'PDF Studio',
+  productName,
   '--set-version-string',
   'CompanyName',
   'PDF Studio',
   '--set-version-string',
   'InternalName',
-  'PDF Studio',
+  productName,
   '--set-version-string',
   'OriginalFilename',
-  'PDF Studio.exe',
+  originalFilename,
   '--set-version-string',
   'LegalCopyright',
   'Copyright (c) 2026 PDF Studio',
   '--set-file-version',
-  '1.0.0',
+  fileVersion,
   '--set-product-version',
-  '1.0.0',
+  fileVersion,
 ];
 
-console.log('[prepare-electron-dist] Gravando ícone PE e metadados Win32 via rcedit-x64.exe...');
+console.log(
+  `[prepare-electron-dist] Gravando ícone PE e metadados Win32 (${productName} ${fileVersion}) via rcedit-x64.exe...`
+);
 execFileSync(rceditBin, rceditArgs, {
   stdio: 'inherit',
 });

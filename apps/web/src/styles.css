@@ -2,8 +2,160 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  color-scheme: light;
+  --cult-bg: #f4f4f5;
+  --cult-surface: #ffffff;
+  --cult-surface-muted: #fafafa;
+  --cult-border: rgba(17, 24, 28, 0.09);
+  --cult-border-strong: rgba(17, 24, 28, 0.16);
+  --cult-text: #111111;
+  --cult-text-secondary: #525252;
+  --cult-text-tertiary: #737373;
+  --cult-ring: #1a94ff;
+  --cult-accent-crimson: #dc2626;
+  --cult-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --cult-ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --cult-shadow-card: 0 1px 1px rgba(0, 0, 0, 0.04),
+    0 1px 1px rgba(255, 252, 240, 0.5) inset,
+    0 0 0 1px rgba(17, 24, 28, 0.08),
+    0 2px 4px rgba(17, 24, 28, 0.04);
+  --cult-shadow-pill: 0 1px 3px rgba(0, 0, 0, 0.12),
+    0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+
+.dark {
+  color-scheme: dark;
+  --cult-bg: #111211;
+  --cult-surface: #1e1f1e;
+  --cult-surface-muted: #161716;
+  --cult-border: rgba(255, 255, 255, 0.08);
+  --cult-border-strong: rgba(255, 255, 255, 0.16);
+  --cult-text: #f5f5f5;
+  --cult-text-secondary: #a3a3a3;
+  --cult-text-tertiary: #737373;
+  --cult-ring: #1a94ff;
+  --cult-shadow-card: 0 1px 0 hsla(0, 0%, 100%, 0.03) inset,
+    0 0 0 1px hsla(0, 0%, 100%, 0.04) inset,
+    0 0 0 1px rgba(0, 0, 0, 0.25),
+    0 4px 8px rgba(0, 0, 0, 0.28);
+  --cult-shadow-pill: 0 1px 0 rgba(255, 255, 255, 0.08) inset,
+    0 2px 4px rgba(0, 0, 0, 0.45);
+}
+
 * {
   box-sizing: border-box;
+  touch-action: manipulation;
+}
+
+body {
+  background-color: var(--cult-bg);
+  color: var(--cult-text);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* Grade pontilhada estilo showcase do Cult UI */
+.cult-dot-grid {
+  background-color: #f4f4f5;
+  background-image: radial-gradient(rgba(17, 24, 28, 0.09) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+.dark .cult-dot-grid {
+  background-color: #111211;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.065) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+
+/* Foco acessível apenas via teclado */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--cult-surface), 0 0 0 4px var(--cult-ring);
+}
+
+@keyframes cultSlideFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes cultSlideFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes cultPopoverIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes cultIslandIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.92);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.cult-anim-slide-right {
+  animation: cultSlideFromRight 220ms var(--cult-ease-spring) both;
+}
+
+.cult-anim-slide-left {
+  animation: cultSlideFromLeft 220ms var(--cult-ease-spring) both;
+}
+
+.cult-anim-popover {
+  animation: cultPopoverIn 180ms var(--cult-ease-out) both;
+}
+
+.cult-anim-island {
+  animation: cultIslandIn 260ms var(--cult-ease-spring) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cult-anim-slide-right,
+  .cult-anim-slide-left,
+  .cult-anim-popover,
+  .cult-anim-island {
+    animation: none !important;
+  }
+  * {
+    transition-duration: 0.01ms !important;
+  }
 }
 
 ::-webkit-scrollbar {
@@ -16,10 +168,10 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(100, 116, 139, 0.35);
+  background: rgba(115, 115, 115, 0.35);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.55);
+  background: rgba(115, 115, 115, 0.55);
 }

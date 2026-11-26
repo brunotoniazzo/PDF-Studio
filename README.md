@@ -27,16 +27,36 @@ Projetado sobre uma **Arquitetura Hexagonal em Monorepo**, o **PDF Studio** sepa
 
 ## Releases e Downloads
 
-Os binários pré-compilados para **Windows 10 / 11 (x64)** ficam versionados em [`apps/desktop-windows/release/`](apps/desktop-windows/release) e também podem ser acompanhados na aba de [GitHub Releases](https://github.com/brunotoniazzo/PDF-Studio/releases).
+Os binários pré-compilados para **Windows 10 / 11 (x64)** estão organizados em pastas separadas:
+- [`apps/desktop-windows/release-beta/`](apps/desktop-windows/release-beta) — Nova edição **PDF Studio Beta (`v2.0.0-beta.1` — Cult UI Edition)**
+- [`apps/desktop-windows/release/`](apps/desktop-windows/release) — Edição estável anterior (`v1.0.0`)
 
-### Downloads Diretos — Versão `v1.0.0` (Windows 10 / 11 — 64 bits)
+Você também pode acompanhar as versões na aba de [GitHub Releases](https://github.com/brunotoniazzo/PDF-Studio/releases).
+
+### Nova Edição Beta — `v2.0.0-beta.1` (Cult UI Edition · Windows 10 / 11 — 64 bits)
 
 | Distribuição | Arquivo | Tamanho Aprox. | Descrição |
 | --- | --- | --- | --- |
-| **Instalador Windows (NSIS Setup)** | [PDF Studio Setup 1.0.0.exe](https://github.com/brunotoniazzo/PDF-Studio/raw/main/apps/desktop-windows/release/PDF%20Studio%20Setup%201.0.0.exe) | ~72,9 MB | Instalação assistida com seleção de pasta, atalhos na Área de Trabalho e Menu Iniciar, ícone nativo na barra de tarefas e associação de arquivos `.pdf`. |
-| **Executável Portátil (Standalone)** | [PDF Studio 1.0.0.exe](https://github.com/brunotoniazzo/PDF-Studio/raw/main/apps/desktop-windows/release/PDF%20Studio%201.0.0.exe) | ~72,7 MB | Execução direta sem instalação prévia e sem necessidade de permissões de administrador. |
+| **Instalador Windows Beta (NSIS Setup)** | [PDF Studio Beta Setup 2.0.0-beta.1.exe](https://github.com/brunotoniazzo/PDF-Studio/raw/main/apps/desktop-windows/release-beta/PDF%20Studio%20Beta%20Setup%202.0.0-beta.1.exe) | ~72,94 MB | Edição **PDF Studio Beta** com interface reformulada via componentes táteis do **Cult UI**, atalhos dedicados e identidade própria `com.pdfstudio.beta`. |
+| **Executável Portátil Beta (Standalone)** | [PDF Studio Beta 2.0.0-beta.1.exe](https://github.com/brunotoniazzo/PDF-Studio/raw/main/apps/desktop-windows/release-beta/PDF%20Studio%20Beta%202.0.0-beta.1.exe) | ~72,73 MB | Execução direta do **PDF Studio Beta** sem instalação prévia e sem alterações no motor de execução local-first. |
+
+### Downloads Diretos — Versão Estável `v1.0.0` (Windows 10 / 11 — 64 bits)
+
+| Distribuição | Arquivo | Tamanho Aprox. | Descrição |
+| --- | --- | --- | --- |
+| **Instalador Windows (NSIS Setup)** | [PDF Studio Setup 1.0.0.exe](https://github.com/brunotoniazzo/PDF-Studio/raw/main/apps/desktop-windows/release/PDF%20Studio%20Setup%201.0.0.exe) | ~72,93 MB | Instalação assistida com seleção de pasta, atalhos na Área de Trabalho e Menu Iniciar, ícone nativo na barra de tarefas e associação de arquivos `.pdf`. |
+| **Executável Portátil (Standalone)** | [PDF Studio 1.0.0.exe](https://github.com/brunotoniazzo/PDF-Studio/raw/main/apps/desktop-windows/release/PDF%20Studio%201.0.0.exe) | ~72,72 MB | Execução direta sem instalação prévia e sem necessidade de permissões de administrador. |
 
 ### Histórico de Versões (`Changelog`)
+
+#### Atualização Beta de `26/11/2026` (`v2.0.0-beta.1` — PDF Studio Beta · Cult UI Edition)
+- **Reformulação Visual Completa com Cult UI (`packages/ui/src/components/cult/CultUiPrimitives.tsx`):**
+  - **`TextureCard` & `TextureSeparator`:** Superfícies chanfradas com 5 camadas concêntricas de borda e divisores de sulco duplo na Tela Inicial, Documentos Recentes, desbloqueio por senha e resumos de compressão.
+  - **`TextureButton`:** Botões físicos de casca dupla (`p-[1px]` + gradiente tátil) nas variantes `primary`, `secondary`, `minimal`, `destructive` e `icon`.
+  - **`DirectionAwareTabs` & `CollabToolbar`:** Alternador de 7 modos de trabalho e fluxos do inspetor em trilho rebaixado com pílula elevada, sub-barras segmentadas e cápsulas flutuantes de seleção de texto, anotações e edição rica de blocos.
+  - **`MinimalCard` & `MinimalCardFrame`:** Moldura dupla fosca de 3 px nas ferramentas rápidas, miniaturas laterais e Mesa de Luz (*Organizar*).
+  - **`PopoverTicketModal`, `FloatingPanelSurface` & `DynamicIslandToast`:** Modais e busca global (`Ctrl+F`) com entalhes laterais estilo *ticket cutout*, grade pontilhada (*halftone dot-grid*) no fundo do viewport e notificações em cápsula escura estilo *Dynamic Island*.
+- **Empacotamento Isolado:** Gerado na pasta dedicada `apps/desktop-windows/release-beta/` mantendo intacta a mecânica de execução (`PDFium WASM`, `@cantoo/pdf-lib`, OCR `tesseract.js`, `EditorCommand`) e os binários estáveis `v1.0.0` em `apps/desktop-windows/release/`.
 
 #### Atualização de `26/11/2026` (`v1.0.0` — Desktop UX & Multi-Monitor)
 - **Arraste livre pela barra superior:** A área vazia da barra superior de título e abas (`TopTitleTabsBar`) permanece totalmente arrastável no Desktop Windows enquanto as abas abertas não preenchem a barra, preservando uma faixa mínima arrastável mesmo com muitos documentos abertos e rolagem horizontal das abas pela roda do mouse.
@@ -262,4 +282,7 @@ npm run build:web
 
 # Gerar instalador NSIS e executável portátil para Windows (apps/desktop-windows/release)
 npm run dist:windows
+
+# Gerar instalador e executável portátil do PDF Studio Beta (apps/desktop-windows/release-beta)
+npm run dist:windows:beta
 ```

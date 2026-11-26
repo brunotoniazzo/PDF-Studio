@@ -15,6 +15,7 @@
     "build:desktop": "npm run build --workspace=@pdf-studio/desktop-windows",
     "pack:windows": "npm run pack:win --workspace=@pdf-studio/desktop-windows",
     "dist:windows": "npm run dist:win --workspace=@pdf-studio/desktop-windows",
+    "dist:windows:beta": "npm run dist:win:beta --workspace=@pdf-studio/desktop-windows",
     "typecheck": "tsc -b packages/platform-contracts packages/pdf-engine packages/editor-core packages/ui apps/web apps/desktop-windows",
     "test": "vitest run"
   },

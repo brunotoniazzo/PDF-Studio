@@ -48,6 +48,7 @@ import {
 import { usePlatformActions } from '../context/PlatformContext';
 import { createDraftFromTextBlock } from '../utils/textBlockCommit';
 import { RichTextBlockEditor } from './RichTextBlockEditor';
+import { CollabDivider, CollabToolbar } from './cult/CultUiPrimitives';
 
 export function PageStackView({
   tab,
@@ -724,7 +725,7 @@ export function PageStackView({
       ref={containerRef}
       style={{ width: widthCss, height: heightCss }}
       onMouseUp={handleTextMouseUp}
-      className="relative mx-auto select-none bg-white shadow-[0_2px_12px_rgba(15,23,42,0.14)] ring-1 ring-black/5"
+      className="relative mx-auto select-none rounded-[4px] bg-white shadow-[0_1px_1px_rgba(0,0,0,0.06),0_4px_12px_rgba(17,24,28,0.08),0_0_0_1px_rgba(17,24,28,0.08)]"
     >
       {/* Skeleton sutil enquanto o Worker PDFium finaliza a renderização */}
       {!bitmapLoaded && (
@@ -1264,12 +1265,12 @@ export function PageStackView({
                 width: origBox.width * cssScale + 4,
                 height: origBox.height * cssScale + 4,
               }}
-              className="pointer-events-auto absolute cursor-pointer rounded border border-dashed border-[#2F4D8F]/55 transition hover:border-[#1B2952] hover:bg-[#1B2952]/8"
+              className="pointer-events-auto absolute cursor-pointer rounded-[4px] border border-dashed border-[#1A94FF]/65 transition hover:border-[#1A94FF] hover:bg-[#1A94FF]/10"
             />
           );
         })}
 
-      {/* CÁPSULA FLUTUANTE DE SELEÇÃO DE TEXTO (Inline Floating Toolbar) */}
+      {/* CÁPSULA FLUTUANTE DE SELEÇÃO DE TEXTO (CollabToolbar Cult UI) */}
       {textSelectionPopup && (
         <div
           style={{
@@ -1278,61 +1279,63 @@ export function PageStackView({
             transform: 'translateX(-50%)',
           }}
           onMouseDown={(e) => e.stopPropagation()}
-          className="pointer-events-auto absolute z-40 flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-slate-800 shadow-xl"
+          className="pointer-events-auto absolute z-40"
         >
-          <button
-            onClick={() => {
-              void navigator.clipboard.writeText(textSelectionPopup.text);
-              showToast('Texto copiado.', 'info');
-              setTextSelectionPopup(null);
-            }}
-            title="Copiar texto (Ctrl+C)"
-            className="rounded-full p-1 hover:bg-slate-100"
-          >
-            <Copy className="h-3.5 w-3.5" strokeWidth={1.5} />
-          </button>
-          <div className="h-3.5 w-px bg-slate-200" />
-          {['#FACC15', '#4ADE80', '#60A5FA', '#F87171'].map((col) => (
+          <CollabToolbar className="cult-anim-popover px-2 py-1">
             <button
-              key={col}
-              onClick={() => void createSelectionMarkup('highlight', col)}
-              title="Marca-texto rápido"
-              style={{ backgroundColor: col }}
-              className="h-3.5 w-3.5 rounded-full border border-black/15 hover:scale-110"
-            />
-          ))}
-          <button
-            onClick={() => void createSelectionMarkup('underline', '#1B2952')}
-            title="Sublinhar"
-            className="rounded-full p-1 hover:bg-slate-100"
-          >
-            <Underline className="h-3.5 w-3.5" strokeWidth={1.5} />
-          </button>
-          <button
-            onClick={() => void createSelectionMarkup('strikethrough', '#DC2626')}
-            title="Tachar"
-            className="rounded-full p-1 hover:bg-slate-100"
-          >
-            <Strikethrough className="h-3.5 w-3.5" strokeWidth={1.5} />
-          </button>
-          <button
-            onClick={() => void createSelectionMarkup('sticky-note', '#FDE047')}
-            title="Adicionar Nota"
-            className="rounded-full p-1 hover:bg-slate-100"
-          >
-            <StickyNote className="h-3.5 w-3.5" strokeWidth={1.5} />
-          </button>
-          <button
-            onClick={() => void createSelectionMarkup('redaction', '#DC2626')}
-            title="Marcar para Tarjamento Definitivo"
-            className="rounded-full p-1 text-red-600 hover:bg-red-50"
-          >
-            <ShieldAlert className="h-3.5 w-3.5" strokeWidth={1.5} />
-          </button>
+              onClick={() => {
+                void navigator.clipboard.writeText(textSelectionPopup.text);
+                showToast('Texto copiado.', 'info');
+                setTextSelectionPopup(null);
+              }}
+              title="Copiar texto (Ctrl+C)"
+              className="rounded-full p-1 hover:bg-neutral-100 dark:hover:bg-[#2A2B2A]"
+            >
+              <Copy className="h-3.5 w-3.5" strokeWidth={1.6} />
+            </button>
+            <CollabDivider />
+            {['#FACC15', '#4ADE80', '#38BDF8', '#F87171'].map((col) => (
+              <button
+                key={col}
+                onClick={() => void createSelectionMarkup('highlight', col)}
+                title="Marca-texto rápido"
+                style={{ backgroundColor: col }}
+                className="h-3.5 w-3.5 rounded-full border border-black/20 hover:scale-110"
+              />
+            ))}
+            <button
+              onClick={() => void createSelectionMarkup('underline', '#171717')}
+              title="Sublinhar"
+              className="rounded-full p-1 hover:bg-neutral-100 dark:hover:bg-[#2A2B2A]"
+            >
+              <Underline className="h-3.5 w-3.5" strokeWidth={1.6} />
+            </button>
+            <button
+              onClick={() => void createSelectionMarkup('strikethrough', '#DC2626')}
+              title="Tachar"
+              className="rounded-full p-1 hover:bg-neutral-100 dark:hover:bg-[#2A2B2A]"
+            >
+              <Strikethrough className="h-3.5 w-3.5" strokeWidth={1.6} />
+            </button>
+            <button
+              onClick={() => void createSelectionMarkup('sticky-note', '#FDE047')}
+              title="Adicionar Nota"
+              className="rounded-full p-1 hover:bg-neutral-100 dark:hover:bg-[#2A2B2A]"
+            >
+              <StickyNote className="h-3.5 w-3.5" strokeWidth={1.6} />
+            </button>
+            <button
+              onClick={() => void createSelectionMarkup('redaction', '#DC2626')}
+              title="Marcar para Tarjamento Definitivo"
+              className="rounded-full p-1 text-red-600 hover:bg-red-500/10"
+            >
+              <ShieldAlert className="h-3.5 w-3.5" strokeWidth={1.6} />
+            </button>
+          </CollabToolbar>
         </div>
       )}
 
-      {/* CÁPSULA FLUTUANTE DE OBJETO / ANOTAÇÃO SELECIONADA */}
+      {/* CÁPSULA FLUTUANTE DE OBJETO / ANOTAÇÃO SELECIONADA (CollabToolbar Cult UI) */}
       {selectedAnnotOnPage && activeEditingBlock === undefined && (
         <div
           style={{
@@ -1345,102 +1348,104 @@ export function PageStackView({
               4,
               pdfRectToSvg(selectedAnnotOnPage.rect, effSize.heightPt, geometry.cropBox).y *
                 cssScale -
-                34
+                36
             ),
           }}
           onPointerDown={(e) => e.stopPropagation()}
-          className="pointer-events-auto absolute z-40 flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-slate-700 shadow-lg"
+          className="pointer-events-auto absolute z-40"
         >
-          {['#FACC15', '#4ADE80', '#60A5FA', '#DC2626', '#1B2952'].map((col) => (
+          <CollabToolbar className="cult-anim-popover px-2 py-1">
+            {['#FACC15', '#4ADE80', '#38BDF8', '#DC2626', '#171717'].map((col) => (
+              <button
+                key={col}
+                onClick={() =>
+                  void executeCommand(
+                    tab.tabId,
+                    new UpdateAnnotationCommand(
+                      tab.tabId,
+                      selectedAnnotOnPage,
+                      { ...selectedAnnotOnPage, color: col, strokeColor: col },
+                      mutator,
+                      'Alterar cor'
+                    )
+                  )
+                }
+                style={{ backgroundColor: col }}
+                className="h-3.5 w-3.5 rounded-full border border-black/20 hover:scale-110"
+              />
+            ))}
+            <CollabDivider />
             <button
-              key={col}
               onClick={() =>
                 void executeCommand(
                   tab.tabId,
                   new UpdateAnnotationCommand(
                     tab.tabId,
                     selectedAnnotOnPage,
-                    { ...selectedAnnotOnPage, color: col, strokeColor: col },
+                    { ...selectedAnnotOnPage, zIndex: selectedAnnotOnPage.zIndex + 5 },
                     mutator,
-                    'Alterar cor'
+                    'Trazer para frente'
                   )
                 )
               }
-              style={{ backgroundColor: col }}
-              className="h-3.5 w-3.5 rounded-full border border-black/20"
-            />
-          ))}
-          <div className="h-3.5 w-px bg-slate-200" />
-          <button
-            onClick={() =>
-              void executeCommand(
-                tab.tabId,
-                new UpdateAnnotationCommand(
+              title="Trazer para frente"
+              className="rounded-full p-1 hover:bg-neutral-100 dark:hover:bg-[#2A2B2A]"
+            >
+              <ArrowUpToLine className="h-3.5 w-3.5" strokeWidth={1.6} />
+            </button>
+            <button
+              onClick={() =>
+                void executeCommand(
                   tab.tabId,
-                  selectedAnnotOnPage,
-                  { ...selectedAnnotOnPage, zIndex: selectedAnnotOnPage.zIndex + 5 },
-                  mutator,
-                  'Trazer para frente'
+                  new UpdateAnnotationCommand(
+                    tab.tabId,
+                    selectedAnnotOnPage,
+                    { ...selectedAnnotOnPage, zIndex: Math.max(0, selectedAnnotOnPage.zIndex - 5) },
+                    mutator,
+                    'Enviar para trás'
+                  )
                 )
-              )
-            }
-            title="Trazer para frente"
-            className="rounded p-0.5 hover:bg-slate-100"
-          >
-            <ArrowUpToLine className="h-3.5 w-3.5" strokeWidth={1.5} />
-          </button>
-          <button
-            onClick={() =>
-              void executeCommand(
-                tab.tabId,
-                new UpdateAnnotationCommand(
+              }
+              title="Enviar para trás"
+              className="rounded-full p-1 hover:bg-neutral-100 dark:hover:bg-[#2A2B2A]"
+            >
+              <ArrowDownToLine className="h-3.5 w-3.5" strokeWidth={1.6} />
+            </button>
+            <button
+              onClick={() => {
+                const dup: PdfAnnotation = {
+                  ...selectedAnnotOnPage,
+                  id: `dup-${Date.now()}`,
+                  rect: {
+                    left: selectedAnnotOnPage.rect.left + 14,
+                    right: selectedAnnotOnPage.rect.right + 14,
+                    bottom: selectedAnnotOnPage.rect.bottom - 14,
+                    top: selectedAnnotOnPage.rect.top - 14,
+                  },
+                };
+                void executeCommand(
                   tab.tabId,
-                  selectedAnnotOnPage,
-                  { ...selectedAnnotOnPage, zIndex: Math.max(0, selectedAnnotOnPage.zIndex - 5) },
-                  mutator,
-                  'Enviar para trás'
+                  new AddAnnotationCommand(tab.tabId, dup, mutator, 'Duplicar anotação')
+                );
+              }}
+              title="Duplicar"
+              className="rounded-full p-1 hover:bg-neutral-100 dark:hover:bg-[#2A2B2A]"
+            >
+              <Highlighter className="h-3.5 w-3.5" strokeWidth={1.6} />
+            </button>
+            <button
+              onClick={() =>
+                void executeCommand(
+                  tab.tabId,
+                  new DeleteAnnotationCommand(tab.tabId, selectedAnnotOnPage, mutator)
                 )
-              )
-            }
-            title="Enviar para trás"
-            className="rounded p-0.5 hover:bg-slate-100"
-          >
-            <ArrowDownToLine className="h-3.5 w-3.5" strokeWidth={1.5} />
-          </button>
-          <button
-            onClick={() => {
-              const dup: PdfAnnotation = {
-                ...selectedAnnotOnPage,
-                id: `dup-${Date.now()}`,
-                rect: {
-                  left: selectedAnnotOnPage.rect.left + 14,
-                  right: selectedAnnotOnPage.rect.right + 14,
-                  bottom: selectedAnnotOnPage.rect.bottom - 14,
-                  top: selectedAnnotOnPage.rect.top - 14,
-                },
-              };
-              void executeCommand(
-                tab.tabId,
-                new AddAnnotationCommand(tab.tabId, dup, mutator, 'Duplicar anotação')
-              );
-            }}
-            title="Duplicar"
-            className="rounded p-0.5 hover:bg-slate-100"
-          >
-            <Highlighter className="h-3.5 w-3.5" strokeWidth={1.5} />
-          </button>
-          <button
-            onClick={() =>
-              void executeCommand(
-                tab.tabId,
-                new DeleteAnnotationCommand(tab.tabId, selectedAnnotOnPage, mutator)
-              )
-            }
-            title="Excluir (Delete)"
-            className="rounded p-0.5 text-red-600 hover:bg-red-50"
-          >
-            <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-          </button>
+              }
+              title="Excluir (Delete)"
+              className="rounded-full p-1 text-red-600 hover:bg-red-500/10"
+            >
+              <Trash2 className="h-3.5 w-3.5" strokeWidth={1.6} />
+            </button>
+          </CollabToolbar>
         </div>
       )}
     </div>

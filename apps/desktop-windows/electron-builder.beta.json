@@ -1,0 +1,54 @@
+{
+  "appId": "com.pdfstudio.beta",
+  "productName": "PDF Studio Beta",
+  "electronVersion": "33.4.11",
+  "electronDist": ".electron-dist",
+  "electronLanguages": ["pt-BR", "en-US"],
+  "compression": "maximum",
+  "npmRebuild": false,
+  "directories": {
+    "output": "release-beta"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*",
+    "package.json",
+    "!**/node_modules/**/*"
+  ],
+  "asarUnpack": [
+    "dist/icon.ico",
+    "dist/icon.png"
+  ],
+  "extraResources": [
+    {
+      "from": "public/icon.ico",
+      "to": "icon.ico"
+    }
+  ],
+  "fileAssociations": [
+    {
+      "ext": "pdf",
+      "name": "PDF Document",
+      "description": "Documento PDF (PDF Studio Beta)",
+      "role": "Editor"
+    }
+  ],
+  "win": {
+    "icon": "public/icon.ico",
+    "signAndEditExecutable": false,
+    "target": [
+      { "target": "nsis", "arch": ["x64"] },
+      { "target": "portable", "arch": ["x64"] }
+    ]
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "PDF Studio Beta",
+    "installerIcon": "public/icon.ico",
+    "uninstallerIcon": "public/icon.ico",
+    "installerHeaderIcon": "public/icon.ico"
+  }
+}

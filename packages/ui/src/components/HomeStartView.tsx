@@ -18,11 +18,23 @@ import {
 } from 'lucide-react';
 import { usePdfStudioStore } from '@pdf-studio/editor-core';
 import { usePlatformActions } from '../context/PlatformContext';
+import {
+  CultBrandMark,
+  HaloInput,
+  MinimalCard,
+  MinimalCardFrame,
+  NeumorphEyebrow,
+  TextureButton,
+  TextureCard,
+  TextureCardContent,
+  TextureCardHeader,
+  TextureSeparator,
+} from './cult/CultUiPrimitives';
 
 function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  if (bytes < 1024) return `${bytes}\u00A0B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}\u00A0KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)}\u00A0MB`;
 }
 
 export function HomeStartView({
@@ -39,7 +51,6 @@ export function HomeStartView({
     convertImagesToPdfFlow,
   } = usePlatformActions();
 
-  const darkMode = usePdfStudioStore((s) => s.darkMode);
   const recentDocuments = usePdfStudioStore((s) => s.recentDocuments);
   const recoverableSessions = usePdfStudioStore((s) => s.recoverableSessions);
   const setRecentDocuments = usePdfStudioStore((s) => s.setRecentDocuments);
@@ -120,119 +131,106 @@ export function HomeStartView({
   };
 
   return (
-    <div
-      className={`flex-1 overflow-y-auto px-6 py-7 transition-colors ${
-        darkMode ? 'bg-[#111827] text-slate-100' : 'bg-[#F8FAFC] text-slate-800'
-      }`}
-    >
-      <div className="mx-auto max-w-5xl space-y-6">
+    <div className="cult-dot-grid flex-1 overflow-y-auto px-6 py-7 text-neutral-900 dark:text-neutral-100">
+      <div className="mx-auto max-w-5xl space-y-7">
         {/* Banner de Recuperação Automática Pós-Queda */}
         {recoverableSessions.length > 0 && (
-          <div
-            className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm ${
-              darkMode
-                ? 'border-amber-700/60 bg-amber-950/40 text-amber-200'
-                : 'border-amber-300 bg-amber-50 text-amber-950'
-            }`}
-          >
-            <div className="flex items-center gap-2.5">
-              <RotateCcw className="h-4 w-4 shrink-0 text-amber-600" strokeWidth={1.5} />
-              <span>
-                Encontramos <strong>{recoverableSessions.length}</strong> documento(s) com alterações
-                salvas automaticamente em sessão anterior.
-              </span>
+          <TextureCard variant="compact">
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-amber-50/70 px-4 py-3 text-xs text-amber-950 dark:bg-amber-950/30 dark:text-amber-100">
+              <div className="flex items-center gap-2.5">
+                <RotateCcw className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" strokeWidth={1.6} />
+                <span>
+                  Encontramos <strong className="tabular-nums">{recoverableSessions.length}</strong>{' '}
+                  documento(s) com alterações salvas automaticamente em sessão anterior.
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <TextureButton variant="primary" size="xs" onClick={handleRestoreAllSessions}>
+                  Restaurar todos
+                </TextureButton>
+                <TextureButton variant="minimal" size="xs" onClick={handleDiscardRecovery}>
+                  Descartar
+                </TextureButton>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleRestoreAllSessions}
-                className="rounded bg-[#1B2952] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#2F4D8F]"
-              >
-                Restaurar todos
-              </button>
-              <button
-                onClick={handleDiscardRecovery}
-                className="rounded px-2.5 py-1.5 text-xs opacity-80 hover:opacity-100"
-              >
-                Descartar
-              </button>
-            </div>
-          </div>
+          </TextureCard>
         )}
 
-        {/* Cabeçalho e Zona de Soltura (Dropzone) */}
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDraggingOver(true);
-          }}
-          onDragLeave={() => setIsDraggingOver(false)}
-          onDrop={handleDrop}
-          className={`rounded-xl border-2 border-dashed p-8 text-center transition-all ${
-            isDraggingOver
-              ? 'border-[#2F4D8F] bg-[#1B2952]/10'
-              : darkMode
-              ? 'border-[#334155] bg-[#1E2430]'
-              : 'border-slate-300 bg-white shadow-sm'
-          }`}
-        >
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#1B2952]/10 text-[#1B2952] dark:bg-blue-500/15 dark:text-blue-400">
-            <FileText className="h-6 w-6" strokeWidth={1.5} />
-          </div>
-          <h1 className="text-lg font-semibold tracking-tight">
-            PDF Studio — Leitor e Editor Profissional Local-First
-          </h1>
-          <p
-            className={`mx-auto mt-1 max-w-xl text-xs ${
-              darkMode ? 'text-slate-400' : 'text-slate-500'
+        {/* Hero Dropzone em TextureCard (5 camadas concêntricas Cult UI + grade halftone) */}
+        <TextureCard>
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDraggingOver(true);
+            }}
+            onDragLeave={() => setIsDraggingOver(false)}
+            onDrop={handleDrop}
+            className={`cult-dot-grid relative px-6 py-9 text-center transition-colors duration-150 ${
+              isDraggingOver
+                ? 'bg-sky-50/80 ring-2 ring-inset ring-[#1A94FF] dark:bg-sky-950/30'
+                : ''
             }`}
           >
-            Arraste e solte um ou vários arquivos PDF aqui, ou escolha uma ação abaixo. Todo o
-            processamento ocorre 100% na sua máquina com privacidade total.
-          </p>
+            <div className="mb-4 flex items-center justify-center gap-2">
+              <NeumorphEyebrow tone="crimson">PDF Studio Beta</NeumorphEyebrow>
+              <NeumorphEyebrow>Local-First · PDFium WASM</NeumorphEyebrow>
+            </div>
 
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-            <button
-              onClick={() => void openPdfFromDisk(true)}
-              className="inline-flex h-9 items-center gap-2 rounded-md bg-[#1B2952] px-4 text-xs font-medium text-white shadow-sm transition hover:bg-[#2F4D8F]"
-            >
-              <FolderOpen className="h-4 w-4" strokeWidth={1.5} />
-              Abrir arquivo PDF (Ctrl+O)
-            </button>
-            <button
-              onClick={onRequestNewBlankModal}
-              className={`inline-flex h-9 items-center gap-2 rounded-md border px-4 text-xs font-medium transition ${
-                darkMode
-                  ? 'border-[#334155] bg-[#262E3D] text-slate-100 hover:bg-[#334155]'
-                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              <FilePlus2 className="h-4 w-4" strokeWidth={1.5} />
-              Criar PDF em branco (Ctrl+N)
-            </button>
-            <button
-              onClick={() => void openSampleDocument()}
-              className={`inline-flex h-9 items-center gap-2 rounded-md border px-4 text-xs font-medium transition ${
-                darkMode
-                  ? 'border-blue-500/40 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20'
-                  : 'border-[#2F4D8F]/30 bg-[#1B2952]/5 text-[#1B2952] hover:bg-[#1B2952]/10'
-              }`}
-            >
-              <Sparkles className="h-4 w-4" strokeWidth={1.5} />
-              Abrir PDF Demonstrativo Interativo
-            </button>
+            <div className="mx-auto mb-3.5 flex items-center justify-center">
+              <MinimalCardFrame className="p-2.5">
+                <CultBrandMark className="h-8 w-8 rounded-[9px]" />
+              </MinimalCardFrame>
+            </div>
+
+            <h1 className="mx-auto max-w-xl text-2xl font-medium tracking-[-0.04em] text-neutral-900 dark:text-neutral-50 [text-wrap:balance]">
+              <span className="font-semibold">PDF Studio,</span>{' '}
+              <span className="font-normal text-neutral-500 dark:text-neutral-400">
+                reconstruído com precisão tátil.
+              </span>
+            </h1>
+
+            <p className="mx-auto mt-2 max-w-lg text-xs leading-relaxed text-neutral-600 dark:text-neutral-400">
+              Arraste e solte um ou mais arquivos PDF aqui, ou selecione uma ação abaixo. Todo o
+              processamento ocorre localmente no seu dispositivo com privacidade total.
+            </p>
+
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5">
+              <TextureButton
+                variant="primary"
+                size="md"
+                onClick={() => void openPdfFromDisk(true)}
+              >
+                <FolderOpen className="h-4 w-4" strokeWidth={1.6} />
+                Abrir arquivo PDF (Ctrl+O)
+              </TextureButton>
+              <TextureButton
+                variant="secondary"
+                size="md"
+                onClick={onRequestNewBlankModal}
+              >
+                <FilePlus2 className="h-4 w-4" strokeWidth={1.6} />
+                Criar PDF em branco (Ctrl+N)
+              </TextureButton>
+              <TextureButton
+                variant="minimal"
+                size="md"
+                onClick={() => void openSampleDocument()}
+              >
+                <Sparkles className="h-4 w-4 text-sky-500" strokeWidth={1.6} />
+                Abrir PDF Demonstrativo Interativo
+              </TextureButton>
+            </div>
           </div>
-        </div>
+        </TextureCard>
 
-        {/* Faixa de Ações Rápidas Diretas */}
+        {/* Faixa de Ações Rápidas Diretas em MinimalCard */}
         <div>
-          <h2
-            className={`mb-2.5 text-xs font-semibold uppercase tracking-wider ${
-              darkMode ? 'text-slate-400' : 'text-slate-500'
-            }`}
-          >
-            Ferramentas Rápidas Diretas
-          </h2>
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-neutral-500 dark:text-neutral-400">
+              Ferramentas Rápidas Diretas
+            </h2>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
             {[
               {
                 label: 'Mesclar PDFs',
@@ -278,148 +276,140 @@ export function HomeStartView({
             ].map((item) => {
               const Icon = item.icon;
               return (
-                <button
+                <MinimalCard
                   key={item.label}
+                  role="button"
+                  tabIndex={0}
                   onClick={item.onClick}
-                  className={`flex items-center gap-3 rounded-lg border p-3 text-left transition ${
-                    darkMode
-                      ? 'border-[#334155] bg-[#1E2430] hover:border-blue-400/50 hover:bg-[#262E3D]'
-                      : 'border-slate-200 bg-white hover:border-[#2F4D8F]/50 hover:shadow-sm'
-                  }`}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      item.onClick();
+                    }
+                  }}
+                  className="group flex cursor-pointer items-center gap-3 active:scale-[0.99]"
                 >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#1B2952]/10 text-[#1B2952] dark:bg-blue-500/15 dark:text-blue-400">
-                    <Icon className="h-4 w-4" strokeWidth={1.5} />
-                  </div>
+                  <MinimalCardFrame className="flex h-9 w-9 shrink-0 items-center justify-center text-neutral-800 dark:text-neutral-100">
+                    <Icon className="h-4 w-4 transition-transform duration-150 group-hover:scale-105" strokeWidth={1.6} />
+                  </MinimalCardFrame>
                   <div className="min-w-0">
-                    <div className="truncate text-xs font-semibold">{item.label}</div>
-                    <div
-                      className={`truncate text-[11px] ${
-                        darkMode ? 'text-slate-400' : 'text-slate-500'
-                      }`}
-                    >
+                    <div className="truncate text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+                      {item.label}
+                    </div>
+                    <div className="truncate text-[11px] text-neutral-500 dark:text-neutral-400">
                       {item.desc}
                     </div>
                   </div>
-                </button>
+                </MinimalCard>
               );
             })}
           </div>
         </div>
 
-        {/* Tabela Limpa de Documentos Recentes */}
-        <div
-          className={`rounded-xl border ${
-            darkMode ? 'border-[#334155] bg-[#1E2430]' : 'border-slate-200 bg-white'
-          }`}
-        >
-          <div
-            className={`flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3 ${
-              darkMode ? 'border-[#334155]' : 'border-slate-200'
-            }`}
-          >
-            <div className="flex items-center gap-2 text-xs font-semibold">
-              <Clock className="h-4 w-4 opacity-70" strokeWidth={1.5} />
+        {/* Tabela Tátil de Documentos Recentes em TextureCard compact */}
+        <TextureCard variant="compact">
+          <TextureCardHeader className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+            <div className="flex items-center gap-2 text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+              <Clock className="h-4 w-4 text-neutral-500" strokeWidth={1.6} />
               <span>Documentos Recentes</span>
             </div>
 
             <div className="flex items-center gap-2">
               <div className="relative">
                 <Search
-                  className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 opacity-50"
-                  strokeWidth={1.5}
+                  className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400"
+                  strokeWidth={1.6}
                 />
-                <input
+                <HaloInput
                   type="text"
                   value={filterQuery}
                   onChange={(e) => setFilterQuery(e.target.value)}
-                  placeholder="Filtrar histórico..."
-                  className={`h-7 rounded-md border pl-8 pr-2.5 text-xs outline-none ${
-                    darkMode
-                      ? 'border-[#334155] bg-[#111827] text-slate-100 focus:border-blue-400'
-                      : 'border-slate-200 bg-slate-50 text-slate-800 focus:border-[#1B2952]'
-                  }`}
+                  placeholder="Filtrar histórico…"
+                  className="h-7 w-48 pl-8 pr-2.5"
                 />
               </div>
               {recentDocuments.length > 0 && (
-                <button
+                <TextureButton
+                  variant="minimal"
+                  size="xs"
                   onClick={() => void clearHistory()}
-                  className="inline-flex h-7 items-center gap-1 rounded px-2 text-xs opacity-70 hover:bg-red-500/10 hover:text-red-500 hover:opacity-100"
                   title="Limpar não fixados"
                 >
-                  <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  <Trash2 className="h-3 w-3 text-red-500" strokeWidth={1.6} />
                   Limpar
-                </button>
+                </TextureButton>
               )}
             </div>
-          </div>
+          </TextureCardHeader>
 
-          {filteredRecents.length === 0 ? (
-            <div className="px-4 py-10 text-center text-xs opacity-60">
-              <FileSpreadsheet className="mx-auto mb-2 h-6 w-6 opacity-50" strokeWidth={1.5} />
-              Os documentos abertos recentemente aparecerão listados aqui para acesso instantâneo.
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-200/60 dark:divide-slate-700/50">
-              {filteredRecents.map((entry) => (
-                <div
-                  key={entry.id}
-                  onClick={async () => {
-                    if (
-                      entry.pathOrOrigin &&
-                      entry.pathOrOrigin !== 'Sessão Local' &&
-                      platform.fileSystem.readFileByPath
-                    ) {
-                      const file = await platform.fileSystem.readFileByPath(entry.pathOrOrigin);
-                      if (file) {
-                        await openLoadedFiles([file]);
-                        return;
+          <TextureSeparator />
+
+          <TextureCardContent className="p-0">
+            {filteredRecents.length === 0 ? (
+              <div className="px-4 py-10 text-center text-xs text-neutral-500 dark:text-neutral-400">
+                <FileSpreadsheet className="mx-auto mb-2 h-6 w-6 opacity-45" strokeWidth={1.5} />
+                Os documentos abertos recentemente aparecerão listados aqui para acesso instantâneo.
+              </div>
+            ) : (
+              <div className="divide-y divide-neutral-200/70 dark:divide-white/[0.06]">
+                {filteredRecents.map((entry) => (
+                  <div
+                    key={entry.id}
+                    onClick={async () => {
+                      if (
+                        entry.pathOrOrigin &&
+                        entry.pathOrOrigin !== 'Sessão Local' &&
+                        platform.fileSystem.readFileByPath
+                      ) {
+                        const file = await platform.fileSystem.readFileByPath(entry.pathOrOrigin);
+                        if (file) {
+                          await openLoadedFiles([file]);
+                          return;
+                        }
                       }
-                    }
-                    await openPdfFromDisk(false);
-                  }}
-                  className={`flex cursor-pointer items-center justify-between gap-4 px-4 py-2.5 text-xs transition ${
-                    darkMode ? 'hover:bg-[#262E3D]' : 'hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <FileText
-                      className="h-4 w-4 shrink-0 text-[#1B2952] dark:text-blue-400"
-                      strokeWidth={1.5}
-                    />
-                    <div className="min-w-0">
-                      <div className="truncate font-medium">{entry.name}</div>
-                      <div className="truncate text-[11px] opacity-60">
-                        {entry.pathOrOrigin}
+                      await openPdfFromDisk(false);
+                    }}
+                    className="flex cursor-pointer items-center justify-between gap-4 px-4 py-2.5 text-xs transition-colors hover:bg-neutral-100/80 dark:hover:bg-[#222322]"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-black/10 bg-neutral-100 text-neutral-800 dark:border-white/10 dark:bg-[#262726] dark:text-neutral-200">
+                        <FileText className="h-3.5 w-3.5" strokeWidth={1.6} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate font-medium text-neutral-900 dark:text-neutral-100">
+                          {entry.name}
+                        </div>
+                        <div className="truncate text-[11px] text-neutral-500 dark:text-neutral-400">
+                          {entry.pathOrOrigin}
+                        </div>
                       </div>
                     </div>
+                    <div className="flex shrink-0 items-center gap-4 tabular-nums text-neutral-500 dark:text-neutral-400">
+                      <span className="hidden sm:inline">{formatBytes(entry.sizeBytes)}</span>
+                      <span className="hidden md:inline">
+                        {new Date(entry.openedAt).toLocaleDateString('pt-BR')}
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void togglePin(entry.id);
+                        }}
+                        className={`rounded-full p-1 transition-colors ${
+                          entry.pinned
+                            ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-950'
+                            : 'opacity-45 hover:bg-neutral-200/70 hover:opacity-100 dark:hover:bg-white/10'
+                        }`}
+                        title={entry.pinned ? 'Desafixar do topo' : 'Fixar no topo'}
+                      >
+                        <Pin className="h-3 w-3" strokeWidth={1.6} />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-4 tabular-nums">
-                    <span className="hidden opacity-65 sm:inline">
-                      {formatBytes(entry.sizeBytes)}
-                    </span>
-                    <span className="hidden opacity-65 md:inline">
-                      {new Date(entry.openedAt).toLocaleDateString('pt-BR')}
-                    </span>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void togglePin(entry.id);
-                      }}
-                      className={`rounded p-1 transition ${
-                        entry.pinned
-                          ? 'text-[#1B2952] opacity-100 dark:text-blue-400'
-                          : 'opacity-40 hover:opacity-100'
-                      }`}
-                      title={entry.pinned ? 'Desafixar do topo' : 'Fixar no topo'}
-                    >
-                      <Pin className="h-3.5 w-3.5" strokeWidth={1.5} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+                ))}
+              </div>
+            )}
+          </TextureCardContent>
+        </TextureCard>
       </div>
     </div>
   );

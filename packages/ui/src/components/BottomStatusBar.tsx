@@ -23,6 +23,11 @@ import {
   type DocumentTabState,
   usePdfStudioStore,
 } from '@pdf-studio/editor-core';
+import {
+  CollabDivider,
+  FloatingPanelSurface,
+  HaloSegmented,
+} from './cult/CultUiPrimitives';
 
 const ZOOM_PRESETS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 
@@ -37,7 +42,6 @@ export function BottomStatusBar({
   onFitWidth: () => void;
   onFitPage: () => void;
 }) {
-  const darkMode = usePdfStudioStore((s) => s.darkMode);
   const backgroundTasks = usePdfStudioStore((s) => s.backgroundTasks);
   const setZoom = usePdfStudioStore((s) => s.setZoom);
   const setPageTheme = usePdfStudioStore((s) => s.setPageTheme);
@@ -74,26 +78,15 @@ export function BottomStatusBar({
     setPageTheme(tab.tabId, next);
   };
 
-  const cycleViewLayout = (layout: ViewLayoutMode) => {
-    if (!tab) return;
-    setViewLayout(tab.tabId, layout);
-  };
-
   return (
-    <footer
-      className={`z-30 flex h-[30px] shrink-0 select-none items-center justify-between border-t px-3 text-[11px] tabular-nums ${
-        darkMode
-          ? 'border-[#334155] bg-[#1E2430] text-slate-300'
-          : 'border-[#E2E8F0] bg-[#F8FAFC] text-slate-600'
-      }`}
-    >
-      {/* Esquerda: Dimensões Físicas da Página + Indicador de Tarefas em Segundo Plano */}
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="truncate">{paperInfo}</span>
+    <footer className="z-30 flex h-[32px] shrink-0 select-none items-center justify-between border-t border-black/[0.08] bg-[#F4F4F5] px-3 text-[11px] tabular-nums text-neutral-600 dark:border-white/[0.08] dark:bg-[#111211] dark:text-neutral-300">
+      {/* Esquerda: Dimensões Físicas + DynamicIsland-style Task Pill */}
+      <div className="flex min-w-0 items-center gap-2.5">
+        <span className="truncate font-mono text-[10.5px]">{paperInfo}</span>
         {runningTask && (
-          <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
-            <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.5} />
-            <span className="max-w-[240px] truncate">
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-[#161716] px-2.5 py-0.5 text-[10.5px] font-medium text-neutral-100 shadow-sm">
+            <Loader2 className="h-3 w-3 animate-spin text-sky-400" strokeWidth={1.7} />
+            <span className="max-w-[220px] truncate">
               {runningTask.detail ?? runningTask.label} ({Math.round(runningTask.progress)}%)
             </span>
           </div>
@@ -107,17 +100,17 @@ export function BottomStatusBar({
             disabled={tab.currentPage <= 0}
             onClick={() => onScrollToPage(0)}
             title="Primeira página (Home)"
-            className="rounded p-0.5 hover:bg-slate-500/15 disabled:opacity-30"
+            className="rounded-full p-0.5 hover:bg-neutral-500/15 disabled:opacity-30"
           >
-            <ChevronsLeft className="h-3.5 w-3.5" strokeWidth={1.5} />
+            <ChevronsLeft className="h-3.5 w-3.5" strokeWidth={1.6} />
           </button>
           <button
             disabled={tab.currentPage <= 0}
             onClick={() => onScrollToPage(tab.currentPage - 1)}
             title="Página anterior (PageUp)"
-            className="rounded p-0.5 hover:bg-slate-500/15 disabled:opacity-30"
+            className="rounded-full p-0.5 hover:bg-neutral-500/15 disabled:opacity-30"
           >
-            <ChevronLeft className="h-3.5 w-3.5" strokeWidth={1.5} />
+            <ChevronLeft className="h-3.5 w-3.5" strokeWidth={1.6} />
           </button>
 
           <form
@@ -137,30 +130,28 @@ export function BottomStatusBar({
               value={pageInput}
               onChange={(e) => setPageInput(e.target.value)}
               aria-label="Página atual"
-              className={`h-5 w-10 rounded border text-center text-[11px] outline-none ${
-                darkMode
-                  ? 'border-[#334155] bg-[#111827] text-white'
-                  : 'border-slate-300 bg-white text-slate-900'
-              }`}
+              className="h-5 w-10 rounded-[6px] border border-black/15 bg-white text-center font-mono text-[11px] text-neutral-900 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none focus:border-[#1A94FF] dark:border-white/15 dark:bg-[#1E1F1E] dark:text-neutral-100"
             />
-            <span className="opacity-70">/ {tab.geometries.length}</span>
+            <span className="font-mono text-[11px] opacity-70">
+              / {tab.geometries.length}
+            </span>
           </form>
 
           <button
             disabled={tab.currentPage >= tab.geometries.length - 1}
             onClick={() => onScrollToPage(tab.currentPage + 1)}
             title="Próxima página (PageDown)"
-            className="rounded p-0.5 hover:bg-slate-500/15 disabled:opacity-30"
+            className="rounded-full p-0.5 hover:bg-neutral-500/15 disabled:opacity-30"
           >
-            <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.5} />
+            <ChevronRight className="h-3.5 w-3.5" strokeWidth={1.6} />
           </button>
           <button
             disabled={tab.currentPage >= tab.geometries.length - 1}
             onClick={() => onScrollToPage(tab.geometries.length - 1)}
             title="Última página (End)"
-            className="rounded p-0.5 hover:bg-slate-500/15 disabled:opacity-30"
+            className="rounded-full p-0.5 hover:bg-neutral-500/15 disabled:opacity-30"
           >
-            <ChevronsRight className="h-3.5 w-3.5" strokeWidth={1.5} />
+            <ChevronsRight className="h-3.5 w-3.5" strokeWidth={1.6} />
           </button>
         </div>
       )}
@@ -168,46 +159,36 @@ export function BottomStatusBar({
       {/* Direita: Layout de Leitura, Tema da Folha, Ajustes e Controle de Zoom */}
       {tab && tab.geometries.length > 0 ? (
         <div className="flex items-center gap-1.5">
-          {/* Modos de Exibição */}
-          <div className="hidden items-center gap-0.5 sm:flex">
-            <button
-              onClick={() => cycleViewLayout('single')}
-              title="Página única"
-              className={`rounded p-1 ${
-                tab.viewLayout === 'single'
-                  ? 'bg-[#1B2952] text-white dark:bg-[#2F4D8F]'
-                  : 'hover:bg-slate-500/15'
-              }`}
-            >
-              <File className="h-3 w-3" strokeWidth={1.5} />
-            </button>
-            <button
-              onClick={() => cycleViewLayout('continuous')}
-              title="Rolagem contínua"
-              className={`rounded p-1 ${
-                tab.viewLayout === 'continuous'
-                  ? 'bg-[#1B2952] text-white dark:bg-[#2F4D8F]'
-                  : 'hover:bg-slate-500/15'
-              }`}
-            >
-              <ScrollText className="h-3 w-3" strokeWidth={1.5} />
-            </button>
-            <button
-              onClick={() => cycleViewLayout('dual-book')}
-              title="Página dupla (Modo Livro)"
-              className={`rounded p-1 ${
-                tab.viewLayout === 'dual-book'
-                  ? 'bg-[#1B2952] text-white dark:bg-[#2F4D8F]'
-                  : 'hover:bg-slate-500/15'
-              }`}
-            >
-              <BookOpen className="h-3 w-3" strokeWidth={1.5} />
-            </button>
+          <div className="hidden sm:block">
+            <HaloSegmented<ViewLayoutMode>
+              value={tab.viewLayout === 'dual-cover' ? 'dual-book' : tab.viewLayout}
+              onChange={(layout) => setViewLayout(tab.tabId, layout)}
+              options={[
+                {
+                  id: 'single',
+                  label: '',
+                  title: 'Página única',
+                  icon: <File className="h-3 w-3" strokeWidth={1.6} />,
+                },
+                {
+                  id: 'continuous',
+                  label: '',
+                  title: 'Rolagem contínua',
+                  icon: <ScrollText className="h-3 w-3" strokeWidth={1.6} />,
+                },
+                {
+                  id: 'dual-book',
+                  label: '',
+                  title: 'Página dupla (Modo Livro)',
+                  icon: <BookOpen className="h-3 w-3" strokeWidth={1.6} />,
+                },
+              ]}
+            />
           </div>
 
-          <div className="hidden h-3.5 w-px bg-slate-500/20 sm:block" />
+          <CollabDivider />
 
-          {/* Tema Independente da Folha (Normal / Noturno / Sépia) */}
+          {/* Tema Independente da Folha */}
           <button
             onClick={cyclePageTheme}
             title={`Tema da página: ${
@@ -217,13 +198,13 @@ export function BottomStatusBar({
                 ? 'Noturno (Alto Contraste)'
                 : 'Sépia Conforto'
             }`}
-            className={`flex items-center gap-1 rounded px-1.5 py-0.5 ${
+            className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10.5px] font-medium transition-colors ${
               tab.pageTheme !== 'normal'
-                ? 'bg-[#1B2952] text-white dark:bg-[#2F4D8F]'
-                : 'hover:bg-slate-500/15'
+                ? 'border-black/15 bg-neutral-900 text-white dark:border-white/15 dark:bg-neutral-100 dark:text-neutral-950'
+                : 'border-transparent hover:bg-neutral-500/15'
             }`}
           >
-            <Contrast className="h-3 w-3" strokeWidth={1.5} />
+            <Contrast className="h-3 w-3" strokeWidth={1.6} />
             <span className="hidden md:inline">
               {tab.pageTheme === 'normal'
                 ? 'Folha Original'
@@ -236,27 +217,27 @@ export function BottomStatusBar({
           <button
             onClick={onFitWidth}
             title="Ajustar à largura (Ctrl+2)"
-            className="rounded p-1 hover:bg-slate-500/15"
+            className="rounded-full p-1 hover:bg-neutral-500/15"
           >
-            <MoveHorizontal className="h-3.5 w-3.5" strokeWidth={1.5} />
+            <MoveHorizontal className="h-3.5 w-3.5" strokeWidth={1.6} />
           </button>
           <button
             onClick={onFitPage}
             title="Ajustar à página inteira (Ctrl+1)"
-            className="rounded p-1 hover:bg-slate-500/15"
+            className="rounded-full p-1 hover:bg-neutral-500/15"
           >
-            <Maximize className="h-3.5 w-3.5" strokeWidth={1.5} />
+            <Maximize className="h-3.5 w-3.5" strokeWidth={1.6} />
           </button>
 
-          <div className="h-3.5 w-px bg-slate-500/20" />
+          <CollabDivider />
 
           {/* Controle de Zoom */}
           <button
             onClick={() => setZoom(tab.tabId, tab.zoom - 0.15)}
             title="Reduzir zoom (Ctrl+-)"
-            className="rounded p-0.5 hover:bg-slate-500/15"
+            className="rounded-full p-0.5 hover:bg-neutral-500/15"
           >
-            <Minus className="h-3.5 w-3.5" strokeWidth={1.5} />
+            <Minus className="h-3.5 w-3.5" strokeWidth={1.6} />
           </button>
 
           <input
@@ -266,7 +247,7 @@ export function BottomStatusBar({
             step={0.05}
             value={tab.zoom}
             onChange={(e) => setZoom(tab.tabId, parseFloat(e.target.value))}
-            className="hidden h-1.5 w-20 cursor-pointer accent-[#1B2952] md:block"
+            className="hidden h-1.5 w-20 cursor-pointer accent-neutral-900 dark:accent-neutral-100 md:block"
           />
 
           <div className="relative">
@@ -275,19 +256,16 @@ export function BottomStatusBar({
                 e.stopPropagation();
                 setZoomMenuOpen((v) => !v);
               }}
-              className="w-12 rounded px-1 py-0.5 text-center font-medium hover:bg-slate-500/15"
+              className="w-12 rounded-md px-1 py-0.5 text-center font-mono font-medium hover:bg-neutral-500/15"
               title="Predefinições de zoom"
             >
               {Math.round(tab.zoom * 100)}%
             </button>
             {zoomMenuOpen && (
-              <div
+              <FloatingPanelSurface
                 onClick={(e) => e.stopPropagation()}
-                className={`absolute bottom-7 right-0 z-50 w-24 rounded-md border py-1 shadow-xl ${
-                  darkMode
-                    ? 'border-[#334155] bg-[#1E2430] text-slate-100'
-                    : 'border-slate-200 bg-white text-slate-800'
-                }`}
+                className="absolute bottom-8 right-0 z-50 w-24"
+                innerClassName="py-1"
               >
                 {ZOOM_PRESETS.map((z) => (
                   <button
@@ -296,25 +274,25 @@ export function BottomStatusBar({
                       setZoom(tab.tabId, z);
                       setZoomMenuOpen(false);
                     }}
-                    className="block w-full px-3 py-1 text-right hover:bg-slate-500/10"
+                    className="block w-full px-3 py-1 text-right font-mono text-[11px] hover:bg-neutral-100 dark:hover:bg-[#232423]"
                   >
                     {Math.round(z * 100)}%
                   </button>
                 ))}
-              </div>
+              </FloatingPanelSurface>
             )}
           </div>
 
           <button
             onClick={() => setZoom(tab.tabId, tab.zoom + 0.15)}
             title="Ampliar zoom (Ctrl++)"
-            className="rounded p-0.5 hover:bg-slate-500/15"
+            className="rounded-full p-0.5 hover:bg-neutral-500/15"
           >
-            <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
+            <Plus className="h-3.5 w-3.5" strokeWidth={1.6} />
           </button>
         </div>
       ) : (
-        <span className="opacity-60">PDFium WASM · ISO 32000</span>
+        <span className="font-mono text-[10.5px] opacity-65">PDFium WASM · Beta</span>
       )}
     </footer>
   );

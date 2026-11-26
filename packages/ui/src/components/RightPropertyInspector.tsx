@@ -60,16 +60,35 @@ import {
 } from '../utils/richTextRuns';
 import { commitTextBlockDraftToPdf } from '../utils/textBlockCommit';
 import { applyPatchToDraft } from './RichTextBlockEditor';
+import {
+  DirectionAwareTabs,
+  HaloInput,
+  HaloSelect,
+  MinimalCard,
+  NeumorphEyebrow,
+  TextureButton,
+  TextureCard,
+  TextureSeparator,
+} from './cult/CultUiPrimitives';
 
 function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  if (bytes < 1024) return `${bytes}\u00A0B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}\u00A0KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)}\u00A0MB`;
 }
+
+const INSPECTOR_FLOWS = [
+  { id: 'auto' as const, label: 'Seleção', shortLabel: 'Seleção' },
+  { id: 'watermark' as const, label: "Marca d'Água", shortLabel: "Marca d'Água" },
+  { id: 'bates' as const, label: 'Bates', shortLabel: 'Bates' },
+  { id: 'compress' as const, label: 'Comprimir', shortLabel: 'Comprimir' },
+  { id: 'redact' as const, label: 'Tarjar', shortLabel: 'Tarjar' },
+  { id: 'signature' as const, label: 'Assinar', shortLabel: 'Assinar' },
+  { id: 'ocr' as const, label: 'OCR', shortLabel: 'OCR' },
+];
 
 export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
   const { platform, applyStructuralMutation } = usePlatformActions();
-  const darkMode = usePdfStudioStore((s) => s.darkMode);
   const rightInspectorOpen = usePdfStudioStore((s) => s.rightInspectorOpen);
   const rightInspectorFlow = usePdfStudioStore((s) => s.rightInspectorFlow);
   const rightInspectorWidth = usePdfStudioStore((s) => s.rightInspectorWidth);
@@ -87,7 +106,7 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
   const [watermark, setWatermark] = useState<WatermarkConfig>({
     text: 'CONFIDENCIAL',
     fontSizePt: 46,
-    colorHex: '#1B2952',
+    colorHex: '#171717',
     opacity: 0.18,
     angleDeg: 38,
     pageRange: 'all',
@@ -111,7 +130,7 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
     digits: 6,
     position: 'top-right',
     fontSizePt: 10,
-    colorHex: '#1B2952',
+    colorHex: '#171717',
   });
 
   const [compression, setCompression] = useState<CompressionConfig>({
@@ -131,8 +150,8 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
   const [typedSigText, setTypedSigText] = useState('');
   const sigCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawingSig, setIsDrawingSig] = useState(false);
-
   const [replyDraft, setReplyDraft] = useState('');
+  const [flowSlideDir, setFlowSlideDir] = useState<1 | -1>(1);
 
   useEffect(() => {
     if (rightInspectorOpen && rightInspectorFlow === 'signature') {
@@ -169,7 +188,6 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
     );
   };
 
-  // Busca automática de padrões LGPD para Tarjamento em Lote
   const markPatternForRedaction = async (
     patternLabel: string,
     regexSource: string
@@ -288,7 +306,7 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
     c.height = 120;
     const ctx = c.getContext('2d')!;
     ctx.clearRect(0, 0, c.width, c.height);
-    ctx.fillStyle = '#1B2952';
+    ctx.fillStyle = '#171717';
     ctx.font = 'italic 42px Georgia, "Times New Roman", serif';
     ctx.fillText(typedSigText.trim(), 18, 76);
     const dataUrl = c.toDataURL('image/png');
@@ -305,7 +323,7 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
       pageIndex: tab.currentPage,
       type: 'signature-visual',
       rect: { left: cx - 85, bottom: cy - 28, right: cx + 85, top: cy + 28 },
-      color: '#1B2952',
+      color: '#171717',
       opacity: 1,
       zIndex: 500,
       imageDataUrl: dataUrl,
@@ -328,7 +346,7 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
       id: taskId,
       label: 'OCR em execução',
       progress: 5,
-      detail: 'Inicializando motor OCR...',
+      detail: 'Inicializando motor OCR…',
       status: 'running',
     });
 
@@ -368,61 +386,54 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
   };
 
   const compEstimate = estimatePdfCompression(tab.bytes, compression);
+  const currentTabFlow =
+    INSPECTOR_FLOWS.some((f) => f.id === rightInspectorFlow)
+      ? (rightInspectorFlow as (typeof INSPECTOR_FLOWS)[number]['id'])
+      : 'auto';
 
   return (
     <aside
       style={{ width: rightInspectorWidth }}
-      className={`z-20 flex shrink-0 flex-col border-l text-xs ${
-        darkMode
-          ? 'border-[#334155] bg-[#1E2430] text-slate-200'
-          : 'border-[#E2E8F0] bg-white text-slate-700'
-      }`}
+      className="z-20 flex shrink-0 flex-col border-l border-black/[0.08] bg-[#FAFAFA] text-xs text-neutral-700 dark:border-white/[0.08] dark:bg-[#161716] dark:text-neutral-200"
     >
-      <div
-        className={`flex h-9 shrink-0 items-center justify-between border-b px-3 font-semibold ${
-          darkMode ? 'border-[#334155]' : 'border-[#E2E8F0]'
-        }`}
-      >
-        <span>Inspetor de Propriedades</span>
-        <button
+      <div className="flex h-10 shrink-0 items-center justify-between px-3">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-neutral-500 dark:text-neutral-400">
+          Inspetor de Propriedades
+        </span>
+        <TextureButton
+          variant="minimal"
+          size="icon"
           onClick={closeRightInspector}
-          className="rounded p-1 opacity-70 hover:bg-slate-500/15 hover:opacity-100"
+          title="Fechar inspetor"
         >
-          <X className="h-3.5 w-3.5" strokeWidth={1.5} />
-        </button>
+          <X className="h-3.5 w-3.5" strokeWidth={1.6} />
+        </TextureButton>
       </div>
 
-      {/* Seletor rápido de assistentes quando nenhum objeto está focado */}
+      <TextureSeparator />
+
+      {/* Seletor rápido de assistentes em trilho DirectionAwareTabs */}
+      <div className="border-b border-black/[0.06] bg-neutral-100/60 px-2.5 py-2 dark:border-white/[0.06] dark:bg-[#141514]">
+        <DirectionAwareTabs
+          compact
+          ariaLabel="Fluxos do inspetor"
+          items={INSPECTOR_FLOWS}
+          value={currentTabFlow}
+          className="w-full flex-wrap justify-start rounded-[12px]"
+          onChange={(next, dir) => {
+            setFlowSlideDir(dir);
+            openRightInspector(next);
+          }}
+        />
+      </div>
+
       <div
-        className={`flex gap-1 overflow-x-auto border-b px-2 py-1.5 ${
-          darkMode ? 'border-[#334155] bg-[#262E3D]' : 'border-slate-100 bg-slate-50'
+        key={rightInspectorFlow}
+        className={`flex-1 space-y-4 overflow-y-auto p-3.5 ${
+          flowSlideDir >= 0 ? 'cult-anim-slide-right' : 'cult-anim-slide-left'
         }`}
       >
-        {[
-          { id: 'auto' as const, label: 'Seleção' },
-          { id: 'watermark' as const, label: "Marca d'Água" },
-          { id: 'bates' as const, label: 'Bates' },
-          { id: 'compress' as const, label: 'Comprimir' },
-          { id: 'redact' as const, label: 'Tarjar' },
-          { id: 'signature' as const, label: 'Assinar' },
-          { id: 'ocr' as const, label: 'OCR' },
-        ].map((f) => (
-          <button
-            key={f.id}
-            onClick={() => openRightInspector(f.id)}
-            className={`shrink-0 rounded px-2 py-1 text-[11px] font-medium ${
-              rightInspectorFlow === f.id
-                ? 'bg-[#1B2952] text-white dark:bg-[#2F4D8F]'
-                : 'opacity-75 hover:bg-slate-500/15 hover:opacity-100'
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex-1 space-y-4 overflow-y-auto p-3.5">
-        {/* 1. FLUXO AUTO: PROPRIEDADES DO BLOCO DE TEXTO OU ANOTAÇÃO SELECIONADA */}
+        {/* 1. FLUXO AUTO */}
         {rightInspectorFlow === 'auto' && (
           <>
             {activeTextBlock && tab.activeTextBlockDraft ? (
@@ -451,11 +462,10 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                 return (
                   <div className="space-y-3.5">
                     <div className="flex items-center justify-between">
-                      <span className="font-semibold text-[#1B2952] dark:text-blue-400">
-                        Bloco de Texto Expansível
-                      </span>
-                      <button
-                        type="button"
+                      <NeumorphEyebrow>Bloco Expansível</NeumorphEyebrow>
+                      <TextureButton
+                        variant="minimal"
+                        size="xs"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() =>
                           void commitTextBlockDraftToPdf({
@@ -466,20 +476,19 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                             deleteBlockOnly: true,
                           })
                         }
-                        className="inline-flex items-center gap-1 rounded px-2 py-1 text-red-600 hover:bg-red-500/10 dark:text-red-400"
                         title="Excluir este bloco de texto do PDF"
                       >
-                        <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                        <Trash2 className="h-3 w-3 text-red-500" strokeWidth={1.6} />
                         Excluir
-                      </button>
+                      </TextureButton>
                     </div>
 
-                    {/* Indicador Claro de Escopo: Palavra/Trecho Selecionado vs Bloco Inteiro */}
+                    {/* Indicador Claro de Escopo */}
                     <div
-                      className={`flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 text-[11px] ${
+                      className={`flex items-center justify-between gap-2 rounded-[10px] border px-2.5 py-2 text-[11px] ${
                         hasSelection
-                          ? 'border-blue-500/40 bg-blue-500/10 text-blue-800 dark:text-blue-200'
-                          : 'border-slate-500/20 bg-slate-500/5 opacity-85'
+                          ? 'border-sky-500/40 bg-sky-500/10 text-sky-900 dark:text-sky-200'
+                          : 'border-black/10 bg-white/70 text-neutral-600 dark:border-white/10 dark:bg-[#1E1F1E] dark:text-neutral-300'
                       }`}
                     >
                       <span className="truncate">
@@ -507,7 +516,7 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                               formatRevision: draft.formatRevision + 1,
                             })
                           }
-                          className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium hover:bg-blue-500/20"
+                          className="shrink-0 rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium hover:bg-sky-500/25"
                           title="Desmarcar seleção para voltar a formatar o bloco inteiro"
                         >
                           Bloco todo
@@ -516,119 +525,109 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                     </div>
 
                     {/* Geometria e Expansão Livre do Bloco */}
-                    <div className="rounded-lg border border-slate-500/20 p-2.5 space-y-2">
-                      <div className="flex items-center justify-between text-[11px] font-medium opacity-80">
-                        <span>Dimensões do Bloco</span>
-                        <span className="tabular-nums">
-                          {ptToMm(boxWidthPt)} × {ptToMm(boxHeightPt)} mm
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="mb-0.5 block text-[11px] opacity-70">
-                            Largura (pt)
-                          </label>
-                          <input
-                            type="number"
-                            min={28}
-                            max={1600}
-                            value={boxWidthPt}
-                            onChange={(e) => {
-                              const nextW = Math.max(28, Number(e.target.value) || 28);
-                              patchDraft({
-                                rect: {
-                                  ...draft.rect,
-                                  right: draft.rect.left + nextW,
-                                },
-                              });
-                            }}
-                            className={`h-7 w-full rounded border px-2 tabular-nums ${
-                              darkMode
-                                ? 'border-[#334155] bg-[#111827]'
-                                : 'border-slate-200 bg-slate-50'
-                            }`}
-                          />
+                    <TextureCard variant="compact">
+                      <div className="space-y-2.5 p-3">
+                        <div className="flex items-center justify-between text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
+                          <span>Dimensões do Bloco</span>
+                          <span className="font-mono tabular-nums">
+                            {ptToMm(boxWidthPt)} × {ptToMm(boxHeightPt)} mm
+                          </span>
                         </div>
-                        <div>
-                          <label className="mb-0.5 block text-[11px] opacity-70">
-                            Altura mín. (pt)
-                          </label>
-                          <input
-                            type="number"
-                            min={16}
-                            max={1600}
-                            value={boxHeightPt}
-                            onChange={(e) => {
-                              const nextH = Math.max(16, Number(e.target.value) || 16);
-                              patchDraft({
-                                rect: {
-                                  ...draft.rect,
-                                  bottom: draft.rect.top - nextH,
-                                },
-                              });
-                            }}
-                            className={`h-7 w-full rounded border px-2 tabular-nums ${
-                              darkMode
-                                ? 'border-[#334155] bg-[#111827]'
-                                : 'border-slate-200 bg-slate-50'
-                            }`}
-                          />
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-400">
+                              Largura (pt)
+                            </label>
+                            <HaloInput
+                              type="number"
+                              min={28}
+                              max={1600}
+                              value={boxWidthPt}
+                              onChange={(e) => {
+                                const nextW = Math.max(28, Number(e.target.value) || 28);
+                                patchDraft({
+                                  rect: {
+                                    ...draft.rect,
+                                    right: draft.rect.left + nextW,
+                                  },
+                                });
+                              }}
+                              className="h-7 tabular-nums"
+                            />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-400">
+                              Altura mín. (pt)
+                            </label>
+                            <HaloInput
+                              type="number"
+                              min={16}
+                              max={1600}
+                              value={boxHeightPt}
+                              onChange={(e) => {
+                                const nextH = Math.max(16, Number(e.target.value) || 16);
+                                patchDraft({
+                                  rect: {
+                                    ...draft.rect,
+                                    bottom: draft.rect.top - nextH,
+                                  },
+                                });
+                              }}
+                              className="h-7 tabular-nums"
+                            />
+                          </div>
                         </div>
+
+                        <TextureButton
+                          variant="secondary"
+                          size="xs"
+                          className="w-full"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            const margin = 36;
+                            const x0 = curGeo?.cropBox.left ?? 0;
+                            patchDraft({
+                              rect: {
+                                ...draft.rect,
+                                left: x0 + margin,
+                                right: x0 + effPage.widthPt - margin,
+                              },
+                            });
+                          }}
+                        >
+                          <MoveHorizontal className="h-3.5 w-3.5" strokeWidth={1.6} />
+                          Expandir à Largura Útil da Página
+                        </TextureButton>
                       </div>
+                    </TextureCard>
 
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          const margin = 36;
-                          const x0 = curGeo?.cropBox.left ?? 0;
-                          patchDraft({
-                            rect: {
-                              ...draft.rect,
-                              left: x0 + margin,
-                              right: x0 + effPage.widthPt - margin,
-                            },
-                          });
-                        }}
-                        className="inline-flex w-full items-center justify-center gap-1.5 rounded border border-[#2F4D8F]/40 bg-[#1B2952]/5 py-1.5 text-[11px] font-medium text-[#1B2952] hover:bg-[#1B2952]/10 dark:border-blue-400/40 dark:bg-blue-500/10 dark:text-blue-300"
-                      >
-                        <MoveHorizontal className="h-3.5 w-3.5" strokeWidth={1.5} />
-                        Expandir à Largura Útil da Página
-                      </button>
-                    </div>
-
-                    {/* Tipografia e Estilo (respeita seleção ou bloco inteiro!) */}
+                    {/* Tipografia e Estilo */}
                     <div>
-                      <label className="mb-1 block opacity-75">
-                        Família da Fonte {hasSelection ? '(Trecho)' : `(Bloco)`}
+                      <label className="mb-1 block text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                        Família da Fonte {hasSelection ? '(Trecho)' : '(Bloco)'}
                       </label>
-                      <select
+                      <HaloSelect
                         value={effStyle.fontFamily}
                         onChange={(e) =>
                           applyPatchToDraft(tab.tabId, draft, {
                             fontFamily: e.target.value as MetricFontFamily,
                           })
                         }
-                        className={`h-8 w-full rounded border px-2 ${
-                          darkMode
-                            ? 'border-[#334155] bg-[#111827]'
-                            : 'border-slate-200 bg-white'
-                        }`}
                       >
                         <option value="sans">Sans-Serif (Arial / Liberation Sans)</option>
                         <option value="serif">Serifada (Times / Liberation Serif)</option>
                         <option value="mono">Monoespaçada (Courier / Liberation Mono)</option>
                         <option value="calibri">Humanista (Calibri / Carlito)</option>
-                      </select>
+                      </HaloSelect>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="mb-1 block opacity-75">
+                        <label className="mb-1 block text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
                           Tamanho {hasSelection ? '(Trecho)' : '(pt)'}
                         </label>
-                        <input
+                        <HaloInput
                           type="number"
                           min={6}
                           max={96}
@@ -651,16 +650,14 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                               }
                             }
                           }}
-                          className={`h-8 w-full rounded border px-2 tabular-nums ${
-                            darkMode
-                              ? 'border-[#334155] bg-[#111827]'
-                              : 'border-slate-200 bg-slate-50'
-                          }`}
+                          className="tabular-nums"
                         />
                       </div>
                       <div>
-                        <label className="mb-1 block opacity-75">Entrelinha (pt)</label>
-                        <input
+                        <label className="mb-1 block text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                          Entrelinha (pt)
+                        </label>
+                        <HaloInput
                           type="number"
                           min={6}
                           max={120}
@@ -671,11 +668,7 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                               lineHeightPt: Math.max(6, Number(e.target.value) || 14),
                             })
                           }
-                          className={`h-8 w-full rounded border px-2 tabular-nums ${
-                            darkMode
-                              ? 'border-[#334155] bg-[#111827]'
-                              : 'border-slate-200 bg-slate-50'
-                          }`}
+                          className="tabular-nums"
                         />
                       </div>
                     </div>
@@ -683,8 +676,9 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                     {/* Negrito, Itálico, Sublinhado e Alinhamento */}
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1">
-                        <button
-                          type="button"
+                        <TextureButton
+                          variant={effStyle.isBold ? 'primary' : 'minimal'}
+                          size="icon"
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() =>
                             applyPatchToDraft(tab.tabId, draft, {
@@ -696,16 +690,12 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                               ? 'Negrito apenas no trecho selecionado (Ctrl+B)'
                               : 'Negrito no bloco inteiro (Ctrl+B)'
                           }
-                          className={`flex h-8 w-8 items-center justify-center rounded border ${
-                            effStyle.isBold
-                              ? 'border-[#1B2952] bg-[#1B2952] text-white'
-                              : 'border-slate-500/30 hover:bg-slate-500/10'
-                          }`}
                         >
                           <Bold className="h-3.5 w-3.5" strokeWidth={2} />
-                        </button>
-                        <button
-                          type="button"
+                        </TextureButton>
+                        <TextureButton
+                          variant={effStyle.isItalic ? 'primary' : 'minimal'}
+                          size="icon"
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() =>
                             applyPatchToDraft(tab.tabId, draft, {
@@ -717,16 +707,12 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                               ? 'Itálico apenas no trecho selecionado (Ctrl+I)'
                               : 'Itálico no bloco inteiro (Ctrl+I)'
                           }
-                          className={`flex h-8 w-8 items-center justify-center rounded border ${
-                            effStyle.isItalic
-                              ? 'border-[#1B2952] bg-[#1B2952] text-white'
-                              : 'border-slate-500/30 hover:bg-slate-500/10'
-                          }`}
                         >
                           <Italic className="h-3.5 w-3.5" strokeWidth={1.8} />
-                        </button>
-                        <button
-                          type="button"
+                        </TextureButton>
+                        <TextureButton
+                          variant={effStyle.isUnderline ? 'primary' : 'minimal'}
+                          size="icon"
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() =>
                             applyPatchToDraft(tab.tabId, draft, {
@@ -738,14 +724,9 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                               ? 'Sublinhado apenas no trecho selecionado (Ctrl+U)'
                               : 'Sublinhado no bloco inteiro (Ctrl+U)'
                           }
-                          className={`flex h-8 w-8 items-center justify-center rounded border ${
-                            effStyle.isUnderline
-                              ? 'border-[#1B2952] bg-[#1B2952] text-white'
-                              : 'border-slate-500/30 hover:bg-slate-500/10'
-                          }`}
                         >
                           <Underline className="h-3.5 w-3.5" strokeWidth={1.8} />
-                        </button>
+                        </TextureButton>
                       </div>
 
                       <div className="flex items-center gap-1">
@@ -756,31 +737,27 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                             ['right', AlignRight, 'Alinhar à direita'],
                           ] as const
                         ).map(([al, IconComp, lbl]) => (
-                          <button
+                          <TextureButton
                             key={al}
-                            type="button"
+                            variant={draft.alignment === al ? 'primary' : 'minimal'}
+                            size="icon"
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => patchDraft({ alignment: al })}
                             title={lbl}
-                            className={`flex h-8 w-8 items-center justify-center rounded border ${
-                              draft.alignment === al
-                                ? 'border-[#1B2952] bg-[#1B2952] text-white'
-                                : 'border-slate-500/30 hover:bg-slate-500/10'
-                            }`}
                           >
-                            <IconComp className="h-3.5 w-3.5" strokeWidth={1.5} />
-                          </button>
+                            <IconComp className="h-3.5 w-3.5" strokeWidth={1.6} />
+                          </TextureButton>
                         ))}
                       </div>
                     </div>
 
-                    {/* Cor do Texto (Trecho ou Bloco) */}
+                    {/* Cor do Texto */}
                     <div>
-                      <label className="mb-1.5 block opacity-75">
+                      <label className="mb-1.5 block text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
                         Cor do Texto {hasSelection ? '(Trecho selecionado)' : '(Bloco inteiro)'}
                       </label>
                       <div className="flex items-center gap-1.5">
-                        {['#0F172A', '#1B2952', '#2F4D8F', '#DC2626', '#047857', '#64748B'].map(
+                        {['#0F172A', '#171717', '#2563EB', '#DC2626', '#047857', '#64748B'].map(
                           (c) => (
                             <button
                               key={c}
@@ -790,10 +767,10 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                                 applyPatchToDraft(tab.tabId, draft, { colorHex: c })
                               }
                               style={{ backgroundColor: c }}
-                              className={`h-5 w-5 rounded-full border ${
+                              className={`h-5 w-5 rounded-full border transition-transform ${
                                 effStyle.colorHex.toLowerCase() === c.toLowerCase()
-                                  ? 'ring-2 ring-[#1B2952] dark:ring-white'
-                                  : 'border-black/20'
+                                  ? 'scale-110 ring-2 ring-[#1A94FF] ring-offset-1 ring-offset-white dark:ring-offset-[#161716]'
+                                  : 'border-black/20 dark:border-white/20'
                               }`}
                             />
                           )
@@ -811,8 +788,8 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                       </div>
                     </div>
 
-                    {/* Cobertura Opcional de Fundo (ao expandir sobre linhas/tabelas) */}
-                    <div className="flex items-center justify-between rounded border border-slate-500/20 p-2">
+                    {/* Cobertura Opcional de Fundo */}
+                    <div className="flex items-center justify-between rounded-[10px] border border-black/[0.08] bg-white px-2.5 py-2 dark:border-white/[0.08] dark:bg-[#1E1F1E]">
                       <label className="flex cursor-pointer items-center gap-2">
                         <input
                           type="checkbox"
@@ -820,7 +797,7 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                           onChange={(e) =>
                             patchDraft({ opaqueBackground: e.target.checked })
                           }
-                          className="accent-[#1B2952]"
+                          className="accent-neutral-900 dark:accent-neutral-100"
                         />
                         <span>Cobrir fundo sob o bloco</span>
                       </label>
@@ -836,8 +813,10 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                       )}
                     </div>
 
-                    <button
-                      type="button"
+                    <TextureButton
+                      variant="primary"
+                      size="md"
+                      className="w-full"
                       onClick={() =>
                         void commitTextBlockDraftToPdf({
                           tab,
@@ -846,45 +825,45 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                           platform,
                         })
                       }
-                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-[#1B2952] py-2 font-medium text-white shadow-sm hover:bg-[#2F4D8F]"
                     >
-                      <Check className="h-4 w-4" strokeWidth={1.5} />
+                      <Check className="h-4 w-4" strokeWidth={1.7} />
                       Aplicar no PDF (Ctrl+Enter)
-                    </button>
+                    </TextureButton>
                   </div>
                 );
               })()
             ) : selectedAnnotation ? (
               <div className="space-y-3.5">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold">
-                    {describeAnnotType(selectedAnnotation.type)}
-                  </span>
-                  <button
+                  <NeumorphEyebrow>{describeAnnotType(selectedAnnotation.type)}</NeumorphEyebrow>
+                  <TextureButton
+                    variant="minimal"
+                    size="xs"
                     onClick={() =>
                       void executeCommand(
                         tab.tabId,
                         new DeleteAnnotationCommand(tab.tabId, selectedAnnotation, mutator)
                       )
                     }
-                    className="inline-flex items-center gap-1 rounded px-2 py-1 text-red-600 hover:bg-red-500/10 dark:text-red-400"
                   >
-                    <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                    <Trash2 className="h-3 w-3 text-red-500" strokeWidth={1.6} />
                     Excluir
-                  </button>
+                  </TextureButton>
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block opacity-75">Cor Principal</label>
+                  <label className="mb-1.5 block text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                    Cor Principal
+                  </label>
                   <div className="flex flex-wrap gap-1.5">
                     {[
                       '#FACC15',
                       '#4ADE80',
-                      '#60A5FA',
+                      '#38BDF8',
                       '#F87171',
-                      '#C084FC',
-                      '#1B2952',
-                      '#0F172A',
+                      '#DC2626',
+                      '#171717',
+                      '#525252',
                     ].map((c) => (
                       <button
                         key={c}
@@ -894,8 +873,8 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                         style={{ backgroundColor: c }}
                         className={`h-5 w-5 rounded-full border ${
                           selectedAnnotation.color === c
-                            ? 'ring-2 ring-[#1B2952] dark:ring-white'
-                            : 'border-black/20'
+                            ? 'ring-2 ring-[#1A94FF] ring-offset-1 ring-offset-white dark:ring-offset-[#161716]'
+                            : 'border-black/20 dark:border-white/20'
                         }`}
                       />
                     ))}
@@ -903,9 +882,9 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                 </div>
 
                 <div>
-                  <label className="mb-1 flex justify-between opacity-75">
+                  <label className="mb-1 flex justify-between text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
                     <span>Opacidade</span>
-                    <span className="tabular-nums">
+                    <span className="font-mono tabular-nums">
                       {Math.round(selectedAnnotation.opacity * 100)}%
                     </span>
                   </label>
@@ -921,30 +900,30 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                         'Ajustar opacidade'
                       )
                     }
-                    className="w-full accent-[#1B2952]"
+                    className="w-full accent-neutral-900 dark:accent-neutral-100"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1 block opacity-75">Texto / Comentário Vinculado</label>
+                  <label className="mb-1 block text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                    Texto / Comentário Vinculado
+                  </label>
                   <textarea
                     rows={3}
                     value={selectedAnnotation.contents ?? ''}
                     onChange={(e) =>
                       updateSelectedAnnot({ contents: e.target.value }, 'Editar nota')
                     }
-                    placeholder="Escreva uma observação de revisão..."
-                    className={`w-full rounded border p-2 text-xs outline-none ${
-                      darkMode
-                        ? 'border-[#334155] bg-[#111827] text-white'
-                        : 'border-slate-200 bg-slate-50 text-slate-900'
-                    }`}
+                    placeholder="Escreva uma observação de revisão…"
+                    className="w-full rounded-[8px] border border-black/10 bg-white p-2 text-xs text-neutral-900 shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)] outline-none focus:border-[#1A94FF] dark:border-white/10 dark:bg-[#111211] dark:text-neutral-100"
                   />
                 </div>
 
                 <div>
-                  <label className="mb-1 block opacity-75">Status de Revisão</label>
-                  <select
+                  <label className="mb-1 block text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
+                    Status de Revisão
+                  </label>
+                  <HaloSelect
                     value={selectedAnnotation.reviewStatus ?? 'none'}
                     onChange={(e) =>
                       updateSelectedAnnot(
@@ -952,44 +931,41 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                         'Alterar status de revisão'
                       )
                     }
-                    className={`h-8 w-full rounded border px-2 ${
-                      darkMode
-                        ? 'border-[#334155] bg-[#111827]'
-                        : 'border-slate-200 bg-white'
-                    }`}
                   >
                     <option value="none">Sem status</option>
                     <option value="approved">Aprovado</option>
                     <option value="rejected">Rejeitado</option>
                     <option value="completed">Concluído</option>
-                  </select>
+                  </HaloSelect>
                 </div>
 
                 {/* Respostas Encadeadas */}
-                <div className="space-y-2 border-t border-slate-500/20 pt-3">
-                  <div className="font-medium">Respostas ({selectedAnnotation.replies?.length ?? 0})</div>
+                <TextureSeparator />
+                <div className="space-y-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-neutral-500 dark:text-neutral-400">
+                    Respostas ({selectedAnnotation.replies?.length ?? 0})
+                  </div>
                   {(selectedAnnotation.replies ?? []).map((rep) => (
-                    <div
-                      key={rep.id}
-                      className="rounded bg-slate-500/10 p-2 text-[11px]"
-                    >
-                      <div className="font-semibold">{rep.author}</div>
-                      <div>{rep.text}</div>
-                    </div>
+                    <MinimalCard key={rep.id} className="rounded-[10px] p-2 text-[11px]">
+                      <div className="font-semibold text-neutral-900 dark:text-neutral-100">
+                        {rep.author}
+                      </div>
+                      <div className="mt-0.5 text-neutral-600 dark:text-neutral-300">
+                        {rep.text}
+                      </div>
+                    </MinimalCard>
                   ))}
                   <div className="flex gap-1.5">
-                    <input
+                    <HaloInput
                       type="text"
                       value={replyDraft}
                       onChange={(e) => setReplyDraft(e.target.value)}
-                      placeholder="Responder comentário..."
-                      className={`h-7 flex-1 rounded border px-2 ${
-                        darkMode
-                          ? 'border-[#334155] bg-[#111827]'
-                          : 'border-slate-200 bg-slate-50'
-                      }`}
+                      placeholder="Responder comentário…"
+                      className="h-7 flex-1"
                     />
-                    <button
+                    <TextureButton
+                      variant="primary"
+                      size="xs"
                       onClick={() => {
                         if (!replyDraft.trim()) return;
                         updateSelectedAnnot(
@@ -1008,15 +984,14 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                         );
                         setReplyDraft('');
                       }}
-                      className="rounded bg-[#1B2952] px-2.5 text-white hover:bg-[#2F4D8F]"
                     >
                       Enviar
-                    </button>
+                    </TextureButton>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="py-10 text-center opacity-65">
+              <div className="py-10 text-center text-neutral-500 dark:text-neutral-400">
                 Selecione uma anotação, forma, carimbo ou bloco de texto na página para editar suas
                 propriedades em tempo real.
               </div>
@@ -1027,52 +1002,54 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
         {/* 2. ASSISTENTE DE MARCA D'ÁGUA */}
         {rightInspectorFlow === 'watermark' && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 font-semibold">
-              <Droplets className="h-4 w-4 text-[#1B2952] dark:text-blue-400" strokeWidth={1.5} />
+            <div className="flex items-center gap-2 font-semibold text-neutral-900 dark:text-neutral-100">
+              <Droplets className="h-4 w-4 text-neutral-600 dark:text-neutral-300" strokeWidth={1.6} />
               <span>Marca d&apos;Água em Lote</span>
             </div>
             <div>
-              <label className="mb-1 block opacity-75">Texto da Marca d&apos;Água</label>
-              <input
+              <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-400">
+                Texto da Marca d&apos;Água
+              </label>
+              <HaloInput
                 type="text"
                 value={watermark.text}
                 onChange={(e) => setWatermark({ ...watermark, text: e.target.value })}
-                className={`h-8 w-full rounded border px-2 ${
-                  darkMode ? 'border-[#334155] bg-[#111827]' : 'border-slate-200 bg-slate-50'
-                }`}
               />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="mb-1 block opacity-75">Tamanho (pt)</label>
-                <input
+                <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-400">
+                  Tamanho (pt)
+                </label>
+                <HaloInput
                   type="number"
                   value={watermark.fontSizePt}
                   onChange={(e) =>
                     setWatermark({ ...watermark, fontSizePt: Number(e.target.value) || 36 })
                   }
-                  className={`h-8 w-full rounded border px-2 ${
-                    darkMode ? 'border-[#334155] bg-[#111827]' : 'border-slate-200 bg-slate-50'
-                  }`}
+                  className="tabular-nums"
                 />
               </div>
               <div>
-                <label className="mb-1 block opacity-75">Ângulo (°)</label>
-                <input
+                <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-400">
+                  Ângulo (°)
+                </label>
+                <HaloInput
                   type="number"
                   value={watermark.angleDeg}
                   onChange={(e) =>
                     setWatermark({ ...watermark, angleDeg: Number(e.target.value) || 0 })
                   }
-                  className={`h-8 w-full rounded border px-2 ${
-                    darkMode ? 'border-[#334155] bg-[#111827]' : 'border-slate-200 bg-slate-50'
-                  }`}
+                  className="tabular-nums"
                 />
               </div>
             </div>
             <div>
-              <label className="mb-1 block opacity-75">
-                Opacidade ({Math.round(watermark.opacity * 100)}%)
+              <label className="mb-1 flex justify-between text-[11px] text-neutral-500 dark:text-neutral-400">
+                <span>Opacidade</span>
+                <span className="font-mono tabular-nums">
+                  {Math.round(watermark.opacity * 100)}%
+                </span>
               </label>
               <input
                 type="range"
@@ -1083,10 +1060,13 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                 onChange={(e) =>
                   setWatermark({ ...watermark, opacity: parseFloat(e.target.value) })
                 }
-                className="w-full accent-[#1B2952]"
+                className="w-full accent-neutral-900 dark:accent-neutral-100"
               />
             </div>
-            <button
+            <TextureButton
+              variant="primary"
+              size="md"
+              className="w-full"
               onClick={() =>
                 void applyStructuralMutation(
                   tab.tabId,
@@ -1094,49 +1074,47 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                   (b) => applyWatermarkToPdf(b, watermark)
                 )
               }
-              className="w-full rounded-md bg-[#1B2952] py-2 font-medium text-white hover:bg-[#2F4D8F]"
             >
               Aplicar Marca d&apos;Água
-            </button>
+            </TextureButton>
           </div>
         )}
 
         {/* 3. CABEÇALHO E RODAPÉ */}
         {rightInspectorFlow === 'header-footer' && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 font-semibold">
-              <FileText className="h-4 w-4 text-[#1B2952] dark:text-blue-400" strokeWidth={1.5} />
+            <div className="flex items-center gap-2 font-semibold text-neutral-900 dark:text-neutral-100">
+              <FileText className="h-4 w-4 text-neutral-600 dark:text-neutral-300" strokeWidth={1.6} />
               <span>Cabeçalho e Rodapé Dinâmicos</span>
             </div>
             <div>
-              <label className="mb-1 block opacity-75">Cabeçalho Esquerdo</label>
-              <input
+              <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-400">
+                Cabeçalho Esquerdo
+              </label>
+              <HaloInput
                 type="text"
                 value={headerFooter.headerLeft ?? ''}
                 onChange={(e) =>
                   setHeaderFooter({ ...headerFooter, headerLeft: e.target.value })
                 }
-                className={`h-8 w-full rounded border px-2 ${
-                  darkMode ? 'border-[#334155] bg-[#111827]' : 'border-slate-200 bg-slate-50'
-                }`}
               />
             </div>
             <div>
-              <label className="mb-1 block opacity-75">
+              <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-400">
                 Rodapé Central (suporta {'{page}'}, {'{total}'}, {'{date}'})
               </label>
-              <input
+              <HaloInput
                 type="text"
                 value={headerFooter.footerCenter ?? ''}
                 onChange={(e) =>
                   setHeaderFooter({ ...headerFooter, footerCenter: e.target.value })
                 }
-                className={`h-8 w-full rounded border px-2 ${
-                  darkMode ? 'border-[#334155] bg-[#111827]' : 'border-slate-200 bg-slate-50'
-                }`}
               />
             </div>
-            <button
+            <TextureButton
+              variant="primary"
+              size="md"
+              className="w-full"
               onClick={() =>
                 void applyStructuralMutation(
                   tab.tabId,
@@ -1144,52 +1122,53 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                   (b) => applyHeaderFooterToPdf(b, headerFooter)
                 )
               }
-              className="w-full rounded-md bg-[#1B2952] py-2 font-medium text-white hover:bg-[#2F4D8F]"
             >
               Aplicar em Todas as Páginas
-            </button>
+            </TextureButton>
           </div>
         )}
 
         {/* 4. NUMERAÇÃO BATES JURÍDICA */}
         {rightInspectorFlow === 'bates' && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 font-semibold">
-              <Hash className="h-4 w-4 text-[#1B2952] dark:text-blue-400" strokeWidth={1.5} />
+            <div className="flex items-center gap-2 font-semibold text-neutral-900 dark:text-neutral-100">
+              <Hash className="h-4 w-4 text-neutral-600 dark:text-neutral-300" strokeWidth={1.6} />
               <span>Numeração Jurídica Bates</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="mb-1 block opacity-75">Prefixo</label>
-                <input
+                <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-400">
+                  Prefixo
+                </label>
+                <HaloInput
                   type="text"
                   value={bates.prefix}
                   onChange={(e) => setBates({ ...bates, prefix: e.target.value })}
-                  className={`h-8 w-full rounded border px-2 ${
-                    darkMode ? 'border-[#334155] bg-[#111827]' : 'border-slate-200 bg-slate-50'
-                  }`}
                 />
               </div>
               <div>
-                <label className="mb-1 block opacity-75">Dígitos</label>
-                <input
+                <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-400">
+                  Dígitos
+                </label>
+                <HaloInput
                   type="number"
                   min={3}
                   max={10}
                   value={bates.digits}
                   onChange={(e) => setBates({ ...bates, digits: Number(e.target.value) || 6 })}
-                  className={`h-8 w-full rounded border px-2 ${
-                    darkMode ? 'border-[#334155] bg-[#111827]' : 'border-slate-200 bg-slate-50'
-                  }`}
+                  className="tabular-nums"
                 />
               </div>
             </div>
-            <div className="rounded bg-slate-500/10 p-2 font-mono text-[11px]">
+            <div className="rounded-[8px] border border-black/[0.06] bg-neutral-100 p-2.5 font-mono text-[11px] text-neutral-800 dark:border-white/[0.06] dark:bg-[#111211] dark:text-neutral-200">
               Prévia: {bates.prefix}
               {String(bates.startNumber).padStart(bates.digits, '0')}
               {bates.suffix}
             </div>
-            <button
+            <TextureButton
+              variant="primary"
+              size="md"
+              className="w-full"
               onClick={() =>
                 void applyStructuralMutation(
                   tab.tabId,
@@ -1197,35 +1176,38 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                   (b) => applyBatesNumberingToPdf(b, bates)
                 )
               }
-              className="w-full rounded-md bg-[#1B2952] py-2 font-medium text-white hover:bg-[#2F4D8F]"
             >
               Estampar Numeração Bates
-            </button>
+            </TextureButton>
           </div>
         )}
 
         {/* 5. COMPRESSÃO INTELIGENTE */}
         {rightInspectorFlow === 'compress' && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 font-semibold">
-              <Minimize2 className="h-4 w-4 text-[#1B2952] dark:text-blue-400" strokeWidth={1.5} />
+            <div className="flex items-center gap-2 font-semibold text-neutral-900 dark:text-neutral-100">
+              <Minimize2 className="h-4 w-4 text-neutral-600 dark:text-neutral-300" strokeWidth={1.6} />
               <span>Compressão e Otimização</span>
             </div>
 
-            <div className="rounded-lg border border-slate-500/20 p-3 space-y-1.5 tabular-nums">
-              <div className="flex justify-between">
-                <span className="opacity-70">Peso atual:</span>
-                <strong>{formatBytes(compEstimate.originalBytes)}</strong>
+            <TextureCard variant="compact">
+              <div className="space-y-1.5 p-3 tabular-nums">
+                <div className="flex justify-between">
+                  <span className="text-neutral-500 dark:text-neutral-400">Peso atual:</span>
+                  <strong>{formatBytes(compEstimate.originalBytes)}</strong>
+                </div>
+                <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+                  <span>Peso estimado:</span>
+                  <strong>~{formatBytes(compEstimate.estimatedBytes)}</strong>
+                </div>
               </div>
-              <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
-                <span>Peso estimado:</span>
-                <strong>~{formatBytes(compEstimate.estimatedBytes)}</strong>
-              </div>
-            </div>
+            </TextureCard>
 
             <div>
-              <label className="mb-1 block opacity-75">Nível de Compressão</label>
-              <select
+              <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-400">
+                Nível de Compressão
+              </label>
+              <HaloSelect
                 value={compression.qualityPreset}
                 onChange={(e) =>
                   setCompression({
@@ -1233,127 +1215,133 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                     qualityPreset: e.target.value as CompressionConfig['qualityPreset'],
                   })
                 }
-                className={`h-8 w-full rounded border px-2 ${
-                  darkMode ? 'border-[#334155] bg-[#111827]' : 'border-slate-200 bg-white'
-                }`}
               >
                 <option value="high">Alta Qualidade (220 DPI)</option>
                 <option value="balanced">Equilibrado Recomendado (150 DPI)</option>
                 <option value="low">Compressão Máxima (72 DPI)</option>
-              </select>
+              </HaloSelect>
             </div>
 
-            <label className="flex items-center gap-2">
+            <label className="flex cursor-pointer items-center gap-2">
               <input
                 type="checkbox"
                 checked={compression.stripMetadata}
                 onChange={(e) =>
                   setCompression({ ...compression, stripMetadata: e.target.checked })
                 }
-                className="accent-[#1B2952]"
+                className="accent-neutral-900 dark:accent-neutral-100"
               />
               <span>Remover metadados ocultos e objetos órfãos</span>
             </label>
 
-            <button
+            <TextureButton
+              variant="primary"
+              size="md"
+              className="w-full"
               onClick={async () => {
                 await applyStructuralMutation(tab.tabId, 'Comprimir e otimizar PDF', (b) =>
                   optimizeAndCompressPdf(b, compression)
                 );
                 showToast('Documento otimizado e reescrito com sucesso.', 'success');
               }}
-              className="w-full rounded-md bg-[#1B2952] py-2 font-medium text-white hover:bg-[#2F4D8F]"
             >
               Comprimir Documento
-            </button>
+            </TextureButton>
           </div>
         )}
 
-        {/* 6. TARJAMENTO DEFINITIVO (REDACTION) + BUSCA DE PADRÕES LGPD */}
+        {/* 6. TARJAMENTO DEFINITIVO (LGPD) */}
         {rightInspectorFlow === 'redact' && (
           <div className="space-y-3">
             <div className="flex items-center gap-2 font-semibold text-red-600 dark:text-red-400">
-              <ShieldAlert className="h-4 w-4" strokeWidth={1.5} />
+              <ShieldAlert className="h-4 w-4" strokeWidth={1.6} />
               <span>Tarjamento Definitivo (LGPD)</span>
             </div>
-            <p className="text-[11px] opacity-80">
+            <p className="text-[11px] leading-relaxed text-neutral-600 dark:text-neutral-400">
               Arraste sobre a página para marcar áreas ou localize dados sensíveis em lote abaixo.
               Ao confirmar, os textos e vetores sob a tarja são destruídos fisicamente.
             </p>
 
-            <div className="space-y-1.5">
-              <div className="font-medium opacity-80">Marcar Padrões Automaticamente:</div>
+            <div className="space-y-2">
+              <div className="text-[11px] font-medium text-neutral-700 dark:text-neutral-300">
+                Marcar Padrões Automaticamente:
+              </div>
               <div className="grid grid-cols-2 gap-1.5">
-                <button
+                <TextureButton
+                  variant="secondary"
+                  size="xs"
                   onClick={() =>
                     void markPatternForRedaction('CPF', '\\d{3}\\.\\d{3}\\.\\d{3}-\\d{2}')
                   }
-                  className="rounded border border-slate-500/30 py-1.5 font-medium hover:bg-slate-500/10"
                 >
                   Buscar CPFs
-                </button>
-                <button
+                </TextureButton>
+                <TextureButton
+                  variant="secondary"
+                  size="xs"
                   onClick={() =>
                     void markPatternForRedaction(
                       'CNPJ',
                       '\\d{2}\\.\\d{3}\\.\\d{3}\\/\\d{4}-\\d{2}'
                     )
                   }
-                  className="rounded border border-slate-500/30 py-1.5 font-medium hover:bg-slate-500/10"
                 >
                   Buscar CNPJs
-                </button>
-                <button
+                </TextureButton>
+                <TextureButton
+                  variant="secondary"
+                  size="xs"
                   onClick={() =>
                     void markPatternForRedaction(
                       'E-mail',
                       '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}'
                     )
                   }
-                  className="rounded border border-slate-500/30 py-1.5 font-medium hover:bg-slate-500/10"
                 >
                   Buscar E-mails
-                </button>
-                <button
+                </TextureButton>
+                <TextureButton
+                  variant="secondary"
+                  size="xs"
                   onClick={() =>
                     void markPatternForRedaction(
                       'Telefone',
                       '\\(\\d{2}\\)\\s?\\d{4,5}-\\d{4}'
                     )
                   }
-                  className="rounded border border-slate-500/30 py-1.5 font-medium hover:bg-slate-500/10"
                 >
                   Buscar Telefones
-                </button>
+                </TextureButton>
               </div>
             </div>
 
-            <button
+            <TextureButton
+              variant="destructive"
+              size="md"
+              className="w-full"
               onClick={() => void applyAllPendingRedactions()}
-              className="w-full rounded-md bg-red-600 py-2 font-semibold text-white shadow-sm hover:bg-red-700"
             >
               Aplicar Tarjamento Permanente
-            </button>
+            </TextureButton>
           </div>
         )}
 
         {/* 7. ASSINATURA VISUAL RÁPIDA */}
         {rightInspectorFlow === 'signature' && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 font-semibold">
-              <FileSignature
-                className="h-4 w-4 text-[#1B2952] dark:text-blue-400"
-                strokeWidth={1.5}
-              />
+            <div className="flex items-center gap-2 font-semibold text-neutral-900 dark:text-neutral-100">
+              <FileSignature className="h-4 w-4 text-neutral-600 dark:text-neutral-300" strokeWidth={1.6} />
               <span>Assinatura Eletrônica Visual</span>
             </div>
 
             <div>
               <div className="mb-1 flex items-center justify-between">
-                <span className="opacity-75">Desenhar Rubrica / Assinatura:</span>
+                <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                  Desenhar Rubrica / Assinatura:
+                </span>
                 <button
                   onClick={clearSignaturePad}
-                  className="text-[11px] text-blue-600 hover:underline dark:text-blue-400"
+                  className="text-[11px] font-medium text-sky-600 hover:underline dark:text-sky-400"
                 >
                   Limpar
                 </button>
@@ -1367,7 +1355,7 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                   if (!c) return;
                   const r = c.getBoundingClientRect();
                   const ctx = c.getContext('2d')!;
-                  ctx.strokeStyle = '#1B2952';
+                  ctx.strokeStyle = '#171717';
                   ctx.lineWidth = 2.2;
                   ctx.lineCap = 'round';
                   ctx.beginPath();
@@ -1383,61 +1371,71 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                 }}
                 onPointerUp={() => setIsDrawingSig(false)}
                 onPointerLeave={() => setIsDrawingSig(false)}
-                className="w-full cursor-crosshair rounded border border-slate-300 bg-white touch-none"
+                className="w-full touch-none rounded-[10px] border border-black/15 bg-white shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] cursor-crosshair"
               />
-              <button
+              <TextureButton
+                variant="primary"
+                size="sm"
+                className="mt-2 w-full"
                 onClick={() => void saveDrawnSignatureAndStamp()}
-                className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded bg-[#1B2952] py-1.5 font-medium text-white hover:bg-[#2F4D8F]"
               >
-                <Check className="h-3.5 w-3.5" strokeWidth={1.5} />
+                <Check className="h-3.5 w-3.5" strokeWidth={1.6} />
                 Salvar e Inserir na Página
-              </button>
+              </TextureButton>
             </div>
 
-            <div className="border-t border-slate-500/20 pt-3">
-              <label className="mb-1 block opacity-75">Ou digitar nome manuscrito:</label>
+            <TextureSeparator />
+
+            <div>
+              <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-400">
+                Ou digitar nome manuscrito:
+              </label>
               <div className="flex gap-1.5">
-                <input
+                <HaloInput
                   type="text"
                   value={typedSigText}
                   onChange={(e) => setTypedSigText(e.target.value)}
                   placeholder="Seu Nome Completo"
-                  className={`h-8 flex-1 rounded border px-2 ${
-                    darkMode ? 'border-[#334155] bg-[#111827]' : 'border-slate-200 bg-slate-50'
-                  }`}
+                  className="flex-1"
                 />
-                <button
+                <TextureButton
+                  variant="primary"
+                  size="sm"
                   onClick={() => void createTypedSignatureAndStamp()}
-                  className="rounded bg-[#1B2952] px-3 text-white hover:bg-[#2F4D8F]"
                 >
                   Inserir
-                </button>
+                </TextureButton>
               </div>
             </div>
 
             {savedSignatures.length > 0 && (
-              <div className="space-y-1.5 border-t border-slate-500/20 pt-3">
-                <div className="opacity-75">Assinaturas Salvas no Perfil:</div>
-                {savedSignatures.map((s) => (
-                  <div
-                    key={s.id}
-                    onClick={() => void stampVisualSignatureOnPage(s.dataUrl)}
-                    className="flex cursor-pointer items-center justify-between rounded border border-slate-300 bg-white p-1.5 hover:border-[#1B2952]"
-                  >
-                    <img src={s.dataUrl} alt={s.label} className="h-8 object-contain" />
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void platform.certificateStore.deleteVisualSignature(s.id);
-                        setSavedSignatures((prev) => prev.filter((x) => x.id !== s.id));
-                      }}
-                      className="p-1 text-slate-400 hover:text-red-600"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-                    </button>
+              <>
+                <TextureSeparator />
+                <div className="space-y-1.5">
+                  <div className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                    Assinaturas Salvas no Perfil:
                   </div>
-                ))}
-              </div>
+                  {savedSignatures.map((s) => (
+                    <div
+                      key={s.id}
+                      onClick={() => void stampVisualSignatureOnPage(s.dataUrl)}
+                      className="flex cursor-pointer items-center justify-between rounded-[10px] border border-black/10 bg-white p-1.5 hover:border-black/30"
+                    >
+                      <img src={s.dataUrl} alt={s.label} className="h-8 object-contain" />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void platform.certificateStore.deleteVisualSignature(s.id);
+                          setSavedSignatures((prev) => prev.filter((x) => x.id !== s.id));
+                        }}
+                        className="p-1 text-neutral-400 hover:text-red-600"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         )}
@@ -1445,73 +1443,75 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
         {/* 8. OCR PESQUISÁVEL */}
         {rightInspectorFlow === 'ocr' && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 font-semibold">
-              <ScanText className="h-4 w-4 text-[#1B2952] dark:text-blue-400" strokeWidth={1.5} />
+            <div className="flex items-center gap-2 font-semibold text-neutral-900 dark:text-neutral-100">
+              <ScanText className="h-4 w-4 text-neutral-600 dark:text-neutral-300" strokeWidth={1.6} />
               <span>OCR — Reconhecimento Óptico</span>
             </div>
-            <p className="text-[11px] opacity-80">
+            <p className="text-[11px] leading-relaxed text-neutral-600 dark:text-neutral-400">
               Converte páginas digitalizadas em texto selecionável e pesquisável preservando a
               aparência visual original.
             </p>
             <div>
-              <label className="mb-1 block opacity-75">Idioma do Documento</label>
-              <select
+              <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-400">
+                Idioma do Documento
+              </label>
+              <HaloSelect
                 value={ocrLang}
                 onChange={(e) => setOcrLang(e.target.value as 'por' | 'eng' | 'por+eng')}
-                className={`h-8 w-full rounded border px-2 ${
-                  darkMode ? 'border-[#334155] bg-[#111827]' : 'border-slate-200 bg-white'
-                }`}
               >
                 <option value="por+eng">Português + Inglês</option>
                 <option value="por">Português (Brasil)</option>
                 <option value="eng">Inglês</option>
-              </select>
+              </HaloSelect>
             </div>
             <div>
-              <label className="mb-1 block opacity-75">Intervalo</label>
-              <select
+              <label className="mb-1 block text-[11px] text-neutral-500 dark:text-neutral-400">
+                Intervalo
+              </label>
+              <HaloSelect
                 value={ocrScope}
                 onChange={(e) => setOcrScope(e.target.value as 'current' | 'all')}
-                className={`h-8 w-full rounded border px-2 ${
-                  darkMode ? 'border-[#334155] bg-[#111827]' : 'border-slate-200 bg-white'
-                }`}
               >
                 <option value="current">Página atual ({tab.currentPage + 1})</option>
                 <option value="all">Todas as páginas ({tab.geometries.length})</option>
-              </select>
+              </HaloSelect>
             </div>
-            <button
+            <TextureButton
+              variant="primary"
+              size="md"
               disabled={isRunningOcr}
               onClick={() => void handleRunOcr()}
-              className="w-full rounded-md bg-[#1B2952] py-2 font-medium text-white hover:bg-[#2F4D8F] disabled:opacity-50"
+              className="w-full"
             >
-              {isRunningOcr ? 'Processando OCR...' : 'Iniciar OCR Pesquisável'}
-            </button>
+              {isRunningOcr ? 'Processando OCR…' : 'Iniciar OCR Pesquisável'}
+            </TextureButton>
           </div>
         )}
 
         {/* 9. SANITIZAÇÃO */}
         {rightInspectorFlow === 'sanitize' && (
           <div className="space-y-3">
-            <div className="flex items-center gap-2 font-semibold">
-              <Shield className="h-4 w-4 text-[#1B2952] dark:text-blue-400" strokeWidth={1.5} />
+            <div className="flex items-center gap-2 font-semibold text-neutral-900 dark:text-neutral-100">
+              <Shield className="h-4 w-4 text-neutral-600 dark:text-neutral-300" strokeWidth={1.6} />
               <span>Sanitização de Privacidade</span>
             </div>
-            <p className="text-[11px] opacity-80">
+            <p className="text-[11px] leading-relaxed text-neutral-600 dark:text-neutral-400">
               Remove metadados ocultos (Autor, Criador, Produtor, XMP), ações de abertura e
               scripts JavaScript embutidos antes de compartilhar o PDF.
             </p>
-            <button
+            <TextureButton
+              variant="primary"
+              size="md"
+              className="w-full"
               onClick={async () => {
                 await applyStructuralMutation(tab.tabId, 'Sanitizar documento PDF', (b) =>
                   sanitizePdfDocument(b)
                 );
                 showToast('Metadados ocultos e scripts removidos com sucesso.', 'success');
               }}
-              className="w-full rounded-md bg-[#1B2952] py-2 font-medium text-white hover:bg-[#2F4D8F]"
             >
               Limpar e Sanitizar Documento
-            </button>
+            </TextureButton>
           </div>
         )}
       </div>

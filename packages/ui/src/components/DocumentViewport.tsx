@@ -28,6 +28,19 @@ import {
   usePdfStudioStore,
 } from '@pdf-studio/editor-core';
 import { usePlatformActions } from '../context/PlatformContext';
+import {
+  CollabToolbar,
+  FloatingPanelSurface,
+  HaloInput,
+  MinimalCard,
+  MinimalCardFrame,
+  NeumorphEyebrow,
+  PopoverFormTicketSeparator,
+  TextureButton,
+  TextureCard,
+  TextureCardContent,
+  TextureCardHeader,
+} from './cult/CultUiPrimitives';
 import { PageStackView } from './PageStackView';
 
 export interface DocumentViewportHandle {
@@ -42,7 +55,6 @@ function OrganizeGridThumb({
   widthPt,
   heightPt,
   selected,
-  darkMode,
   onClick,
   onRotate,
   onDuplicate,
@@ -56,7 +68,6 @@ function OrganizeGridThumb({
   widthPt: number;
   heightPt: number;
   selected: boolean;
-  darkMode: boolean;
   onClick: (e: React.MouseEvent) => void;
   onRotate: () => void;
   onDuplicate: () => void;
@@ -94,61 +105,58 @@ function OrganizeGridThumb({
   }, [docId, pageIndex, widthPt, heightPt]);
 
   return (
-    <div
+    <MinimalCard
       draggable
+      active={selected}
       onDragStart={onDragStart}
       onDragOver={(e) => e.preventDefault()}
       onDrop={onDrop}
       onClick={onClick}
-      className={`group flex cursor-pointer flex-col items-center rounded-xl border p-3 transition ${
-        selected
-          ? 'border-[#1B2952] bg-[#1B2952]/10 ring-2 ring-[#1B2952] dark:border-blue-400 dark:bg-blue-500/15 dark:ring-blue-400'
-          : darkMode
-          ? 'border-[#334155] bg-[#1E2430] hover:border-slate-500'
-          : 'border-slate-200 bg-white shadow-sm hover:border-slate-400'
-      }`}
+      className="group flex cursor-pointer flex-col items-center p-3"
     >
-      <div className="relative w-full overflow-hidden rounded border border-slate-300 bg-white shadow-sm">
+      <MinimalCardFrame className="relative w-full">
         <canvas ref={canvasRef} className="mx-auto block max-h-52 w-full object-contain" />
-        <div className="absolute right-1.5 top-1.5 hidden gap-1 rounded-md bg-slate-900/85 p-1 text-white group-hover:flex">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onRotate();
-            }}
-            title="Girar 90°"
-            className="rounded p-1 hover:bg-white/20"
-          >
-            <RotateCw className="h-3.5 w-3.5" strokeWidth={1.5} />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDuplicate();
-            }}
-            title="Duplicar"
-            className="rounded p-1 hover:bg-white/20"
-          >
-            <Copy className="h-3.5 w-3.5" strokeWidth={1.5} />
-          </button>
-          {canDelete && (
+        <div className="absolute right-1.5 top-1.5 hidden group-hover:flex">
+          <CollabToolbar darkSurface className="gap-0.5 p-0.5">
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onDelete();
+                onRotate();
               }}
-              title="Excluir"
-              className="rounded p-1 text-red-300 hover:bg-red-600 hover:text-white"
+              title="Girar 90°"
+              className="rounded-full p-1 hover:bg-white/15"
             >
-              <Trash2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+              <RotateCw className="h-3.5 w-3.5" strokeWidth={1.6} />
             </button>
-          )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDuplicate();
+              }}
+              title="Duplicar"
+              className="rounded-full p-1 hover:bg-white/15"
+            >
+              <Copy className="h-3.5 w-3.5" strokeWidth={1.6} />
+            </button>
+            {canDelete && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                title="Excluir"
+                className="rounded-full p-1 text-red-400 hover:bg-red-600 hover:text-white"
+              >
+                <Trash2 className="h-3.5 w-3.5" strokeWidth={1.6} />
+              </button>
+            )}
+          </CollabToolbar>
         </div>
-      </div>
-      <span className="mt-2 text-xs font-semibold tabular-nums">
+      </MinimalCardFrame>
+      <span className="mt-2.5 text-xs font-semibold tabular-nums text-neutral-800 dark:text-neutral-200">
         Página {pageIndex + 1}
       </span>
-    </div>
+    </MinimalCard>
   );
 }
 
@@ -237,7 +245,7 @@ export const DocumentViewport = React.forwardRef<
     fitPage,
   ]);
 
-  // Auto-ajusta à largura ao abrir documento se a janela atual for estreita (ex: tela dividida Windows)
+  // Auto-ajusta à largura ao abrir documento se a janela atual for estreita
   const autoFittedRef = useRef<string | null>(null);
   useEffect(() => {
     if (tab.isLoading || tab.geometries.length === 0) return;
@@ -254,7 +262,7 @@ export const DocumentViewport = React.forwardRef<
     }
   }, [tab.isLoading, tab.geometries, tab.tabId, setZoom]);
 
-  // Atalho temporário: segurar Barra de Espaço ativa a ferramenta Mão (Pan)
+  // Segurar Barra de Espaço ativa a ferramenta Mão (Pan)
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
@@ -301,7 +309,7 @@ export const DocumentViewport = React.forwardRef<
     }
   };
 
-  // Executa Busca Global Assíncrona no Worker PDFium
+  // Busca Global Assíncrona no Worker PDFium
   const runSearch = async (
     query: string,
     opts?: { caseSensitive?: boolean; wholeWord?: boolean; useRegex?: boolean }
@@ -343,99 +351,92 @@ export const DocumentViewport = React.forwardRef<
     scrollToPage(tab.searchMatches[nextIdx].pageIndex);
   };
 
-  // 1. Estado de Carregamento Inicial
+  // 1. Estado de Carregamento Inicial (Dynamic Island Pill)
   if (tab.isLoading) {
     return (
-      <div
-        className={`flex flex-1 flex-col items-center justify-center gap-3 ${
-          darkMode ? 'bg-[#111827] text-slate-300' : 'bg-[#E5E7EB] text-slate-700'
-        }`}
-      >
-        <Loader2 className="h-7 w-7 animate-spin text-[#1B2952] dark:text-blue-400" />
-        <span className="text-xs font-medium">Carregando estrutura XRef e motor PDFium WASM...</span>
+      <div className="cult-dot-grid flex flex-1 flex-col items-center justify-center gap-3 p-6">
+        <div className="cult-anim-island inline-flex items-center gap-3 rounded-full border border-white/10 bg-[#161716] px-5 py-2.5 text-xs font-medium text-neutral-100 shadow-[0_1px_0_rgba(255,255,255,0.08)_inset,0_12px_32px_rgba(0,0,0,0.35)]">
+          <Loader2 className="h-4 w-4 animate-spin text-sky-400" />
+          <span>Carregando estrutura XRef e motor PDFium WASM…</span>
+        </div>
       </div>
     );
   }
 
-  // 2. Estado de Documento Protegido por Senha (isolado dentro da própria aba!)
+  // 2. Estado de Documento Protegido por Senha (TextureCard)
   if (tab.requiresPassword) {
     return (
-      <div
-        className={`flex flex-1 items-center justify-center p-6 ${
-          darkMode ? 'bg-[#111827]' : 'bg-[#E5E7EB]'
-        }`}
-      >
+      <div className="cult-dot-grid flex flex-1 items-center justify-center p-6">
         <form
           onSubmit={(e) => {
             e.preventDefault();
             void unlockTabWithPassword(tab.tabId, pwdInput);
           }}
-          className={`w-full max-w-sm rounded-xl border p-6 shadow-xl ${
-            darkMode
-              ? 'border-[#334155] bg-[#1E2430] text-slate-100'
-              : 'border-slate-200 bg-white text-slate-800'
-          }`}
+          className="w-full max-w-sm"
         >
-          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600">
-            <Lock className="h-5 w-5" strokeWidth={1.5} />
-          </div>
-          <h2 className="text-sm font-semibold">Documento Protegido por Senha</h2>
-          <p className="mt-1 text-xs opacity-75">
-            Digite a senha de abertura para descriptografar <strong>{tab.fileName}</strong>.
-          </p>
+          <TextureCard variant="compact">
+            <TextureCardHeader className="pb-2">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-amber-500/25 bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                  <Lock className="h-5 w-5" strokeWidth={1.6} />
+                </div>
+                <NeumorphEyebrow tone="amber">Criptografado</NeumorphEyebrow>
+              </div>
+              <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                Documento Protegido por Senha
+              </h2>
+              <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+                Digite a senha de abertura para descriptografar{' '}
+                <strong className="text-neutral-800 dark:text-neutral-200">{tab.fileName}</strong>.
+              </p>
+            </TextureCardHeader>
 
-          <div className="relative mt-4">
-            <input
-              autoFocus
-              type={showPwd ? 'text' : 'password'}
-              value={pwdInput}
-              onChange={(e) => setPwdInput(e.target.value)}
-              placeholder="Senha do PDF..."
-              className={`h-9 w-full rounded-md border pl-3 pr-9 text-xs outline-none ${
-                darkMode
-                  ? 'border-[#334155] bg-[#111827] text-white'
-                  : 'border-slate-300 bg-slate-50 text-slate-900'
-              }`}
-            />
-            <button
-              type="button"
-              onClick={() => setShowPwd((v) => !v)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 opacity-60 hover:opacity-100"
-            >
-              {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
+            <TextureCardContent className="pt-2">
+              <div className="relative">
+                <HaloInput
+                  autoFocus
+                  type={showPwd ? 'text' : 'password'}
+                  value={pwdInput}
+                  onChange={(e) => setPwdInput(e.target.value)}
+                  placeholder="Senha do PDF…"
+                  className="h-9 pl-3 pr-9"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd((v) => !v)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100"
+                >
+                  {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
 
-          {tab.passwordError && (
-            <p className="mt-2 text-xs font-medium text-red-500">{tab.passwordError}</p>
-          )}
+              {tab.passwordError && (
+                <p className="mt-2 text-xs font-medium text-red-500">{tab.passwordError}</p>
+              )}
 
-          <button
-            type="submit"
-            className="mt-4 h-9 w-full rounded-md bg-[#1B2952] text-xs font-medium text-white hover:bg-[#2F4D8F]"
-          >
-            Desbloquear Documento
-          </button>
+              <TextureButton type="submit" variant="primary" size="md" className="mt-4 w-full">
+                Desbloquear Documento
+              </TextureButton>
+            </TextureCardContent>
+          </TextureCard>
         </form>
       </div>
     );
   }
 
-  // 3. Modo "Organizar" — Mesa de Luz Responsiva (Grade de Páginas em Tela Cheia)
+  // 3. Modo "Organizar" — Mesa de Luz Responsiva em MinimalCard
   if (workMode === 'organize') {
     return (
-      <div
-        className={`flex-1 overflow-y-auto p-6 ${
-          darkMode ? 'bg-[#111827] text-slate-100' : 'bg-[#E5E7EB] text-slate-800'
-        }`}
-      >
+      <div className="cult-dot-grid flex-1 overflow-y-auto p-6 text-neutral-800 dark:text-neutral-100">
         <div className="mx-auto max-w-6xl">
-          <div className="mb-4 flex items-center justify-between text-xs">
-            <span className="font-medium opacity-80">
-              Mesa de Luz de Organização — Clique com Ctrl/Shift para seleção múltipla ou arraste
-              para reordenar páginas.
-            </span>
-            <span className="tabular-nums opacity-75">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2">
+              <NeumorphEyebrow>Mesa de Luz</NeumorphEyebrow>
+              <span className="text-neutral-600 dark:text-neutral-400">
+                Clique com Ctrl para seleção múltipla ou arraste para reordenar páginas.
+              </span>
+            </div>
+            <span className="font-medium tabular-nums text-neutral-600 dark:text-neutral-300">
               {tab.selectedOrganizePages.length > 0
                 ? `${tab.selectedOrganizePages.length} página(s) selecionada(s)`
                 : `${tab.geometries.length} páginas no total`}
@@ -444,7 +445,7 @@ export const DocumentViewport = React.forwardRef<
 
           <div
             className="grid gap-4"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(176px, 1fr))' }}
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}
           >
             {tab.geometries.map((geo) => {
               const isSel = tab.selectedOrganizePages.includes(geo.pageIndex);
@@ -456,7 +457,6 @@ export const DocumentViewport = React.forwardRef<
                   widthPt={geo.widthPt}
                   heightPt={geo.heightPt}
                   selected={isSel}
-                  darkMode={darkMode}
                   canDelete={tab.geometries.length > 1}
                   onClick={(e) => {
                     if (e.ctrlKey || e.metaKey) {
@@ -520,17 +520,14 @@ export const DocumentViewport = React.forwardRef<
 
   return (
     <div className="relative flex flex-1 overflow-hidden">
-      {/* Barra Flutuante de Busca Global (Ctrl+F) */}
+      {/* Barra Flutuante de Busca Global (FloatingPanelSurface + Recorte Ticket) */}
       {tab.isSearchOpen && (
-        <div
-          className={`absolute right-5 top-3 z-40 w-80 rounded-xl border p-2.5 text-xs shadow-2xl ${
-            darkMode
-              ? 'border-[#334155] bg-[#1E2430] text-slate-100'
-              : 'border-slate-200 bg-white text-slate-800'
-          }`}
+        <FloatingPanelSurface
+          className="absolute right-5 top-3 z-40 w-80"
+          innerClassName="p-2.5 text-xs"
         >
           <div className="flex items-center gap-1.5">
-            <Search className="h-3.5 w-3.5 shrink-0 opacity-60" strokeWidth={1.5} />
+            <Search className="h-3.5 w-3.5 shrink-0 text-neutral-400" strokeWidth={1.6} />
             <input
               autoFocus
               type="text"
@@ -544,47 +541,50 @@ export const DocumentViewport = React.forwardRef<
                   updateTabState(tab.tabId, { isSearchOpen: false });
                 }
               }}
-              placeholder="Buscar no PDF..."
-              className="flex-1 bg-transparent outline-none"
+              placeholder="Buscar no PDF…"
+              className="flex-1 bg-transparent text-xs outline-none placeholder:text-neutral-400"
             />
-            <span className="shrink-0 opacity-65 tabular-nums">
+            <span className="shrink-0 font-mono text-[11px] text-neutral-500 tabular-nums">
               {tab.searchMatches.length > 0
                 ? `${tab.activeSearchMatchIndex + 1}/${tab.searchMatches.length}`
                 : '0/0'}
             </span>
             <button
               onClick={() => stepSearchMatch(-1)}
-              className="rounded p-0.5 hover:bg-slate-500/15"
+              className="rounded-full p-1 hover:bg-neutral-100 dark:hover:bg-[#232423]"
               title="Anterior (Shift+Enter)"
             >
-              <ChevronUp className="h-3.5 w-3.5" strokeWidth={1.5} />
+              <ChevronUp className="h-3.5 w-3.5" strokeWidth={1.6} />
             </button>
             <button
               onClick={() => stepSearchMatch(1)}
-              className="rounded p-0.5 hover:bg-slate-500/15"
+              className="rounded-full p-1 hover:bg-neutral-100 dark:hover:bg-[#232423]"
               title="Próximo (Enter / F3)"
             >
-              <ChevronDown className="h-3.5 w-3.5" strokeWidth={1.5} />
+              <ChevronDown className="h-3.5 w-3.5" strokeWidth={1.6} />
             </button>
             <button
               onClick={() => updateTabState(tab.tabId, { isSearchOpen: false })}
-              className="rounded p-0.5 hover:bg-slate-500/15"
+              className="rounded-full p-1 hover:bg-neutral-100 dark:hover:bg-[#232423]"
+              title="Fechar busca"
             >
-              <X className="h-3.5 w-3.5" strokeWidth={1.5} />
+              <X className="h-3.5 w-3.5" strokeWidth={1.6} />
             </button>
           </div>
 
-          <div className="mt-2 flex items-center gap-2 border-t border-slate-500/15 pt-1.5 text-[11px]">
+          <PopoverFormTicketSeparator />
+
+          <div className="flex items-center gap-1.5 pt-1 text-[11px]">
             <button
               onClick={() =>
                 void runSearch(tab.searchQuery, {
                   caseSensitive: !tab.searchCaseSensitive,
                 })
               }
-              className={`rounded px-1.5 py-0.5 ${
+              className={`rounded-md px-2 py-0.5 font-medium transition-colors ${
                 tab.searchCaseSensitive
-                  ? 'bg-[#1B2952] text-white'
-                  : 'opacity-70 hover:bg-slate-500/15'
+                  ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-950'
+                  : 'text-neutral-500 hover:bg-neutral-100 dark:hover:bg-[#232423]'
               }`}
             >
               Aa
@@ -593,10 +593,10 @@ export const DocumentViewport = React.forwardRef<
               onClick={() =>
                 void runSearch(tab.searchQuery, { wholeWord: !tab.searchWholeWord })
               }
-              className={`rounded px-1.5 py-0.5 ${
+              className={`rounded-md px-2 py-0.5 font-medium transition-colors ${
                 tab.searchWholeWord
-                  ? 'bg-[#1B2952] text-white'
-                  : 'opacity-70 hover:bg-slate-500/15'
+                  ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-950'
+                  : 'text-neutral-500 hover:bg-neutral-100 dark:hover:bg-[#232423]'
               }`}
             >
               Palavra inteira
@@ -605,10 +605,10 @@ export const DocumentViewport = React.forwardRef<
               onClick={() =>
                 void runSearch(tab.searchQuery, { useRegex: !tab.searchRegex })
               }
-              className={`rounded px-1.5 py-0.5 font-mono ${
+              className={`rounded-md px-2 py-0.5 font-mono transition-colors ${
                 tab.searchRegex
-                  ? 'bg-[#1B2952] text-white'
-                  : 'opacity-70 hover:bg-slate-500/15'
+                  ? 'bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-950'
+                  : 'text-neutral-500 hover:bg-neutral-100 dark:hover:bg-[#232423]'
               }`}
             >
               .*
@@ -616,7 +616,7 @@ export const DocumentViewport = React.forwardRef<
           </div>
 
           {tab.searchQuery.trim() && tab.searchMatches.length === 0 && (
-            <div className="mt-2 rounded bg-slate-500/10 p-2 text-[11px]">
+            <div className="mt-2 rounded-lg bg-neutral-100 p-2 text-[11px] text-neutral-600 dark:bg-[#222322] dark:text-neutral-300">
               Nenhum trecho encontrado para o termo digitado.
               {tab.metadata?.isScannedCandidate && (
                 <button
@@ -624,7 +624,7 @@ export const DocumentViewport = React.forwardRef<
                     setWorkMode('convert');
                     openRightInspector('ocr');
                   }}
-                  className="mt-1.5 flex items-center gap-1 font-semibold text-[#1B2952] hover:underline dark:text-blue-400"
+                  className="mt-1.5 flex items-center gap-1 font-semibold text-sky-600 hover:underline dark:text-sky-400"
                 >
                   <ScanText className="h-3 w-3" />
                   Executar OCR para tornar pesquisável?
@@ -632,10 +632,10 @@ export const DocumentViewport = React.forwardRef<
               )}
             </div>
           )}
-        </div>
+        </FloatingPanelSurface>
       )}
 
-      {/* Container Principal de Rolagem Virtualizada */}
+      {/* Container Principal de Rolagem Virtualizada com fundo pontilhado Cult UI */}
       <div
         ref={scrollParentRef}
         onWheel={handleWheel}
@@ -668,9 +668,9 @@ export const DocumentViewport = React.forwardRef<
             panState.scrollTop - (e.clientY - panState.startY);
         }}
         onPointerUp={() => setPanState(null)}
-        className={`flex-1 overflow-auto py-5 transition-colors ${
-          darkMode ? 'bg-[#111827]' : 'bg-[#E5E7EB]'
-        } ${isHandActive ? (panState ? 'cursor-grabbing' : 'cursor-grab') : ''}`}
+        className={`cult-dot-grid flex-1 overflow-auto py-6 transition-colors ${
+          isHandActive ? (panState ? 'cursor-grabbing' : 'cursor-grab') : ''
+        }`}
       >
         {/* Rolagem Contínua Virtualizada */}
         {tab.viewLayout === 'continuous' && (
@@ -743,8 +743,8 @@ export const DocumentViewport = React.forwardRef<
       {/* Visualização Dividida (Split View do mesmo documento) */}
       {tab.splitView && tab.geometries[Math.min(tab.geometries.length - 1, tab.currentPage + 1)] && (
         <div
-          className={`hidden w-1/2 overflow-auto border-l py-5 lg:block ${
-            darkMode ? 'border-[#334155] bg-[#111827]' : 'border-slate-300 bg-[#E5E7EB]'
+          className={`cult-dot-grid hidden w-1/2 overflow-auto border-l py-6 lg:block ${
+            darkMode ? 'border-white/[0.08]' : 'border-black/[0.08]'
           }`}
         >
           <PageStackView

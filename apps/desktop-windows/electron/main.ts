@@ -85,7 +85,7 @@ async function sendPdfPathToRenderer(filePath: string): Promise<void> {
   }
 }
 
-const APP_USER_MODEL_ID = 'com.pdfstudio.desktop';
+const APP_USER_MODEL_ID = 'com.pdfstudio.beta';
 if (process.platform === 'win32') {
   app.setAppUserModelId(APP_USER_MODEL_ID);
 }
@@ -145,8 +145,8 @@ async function createMainWindow() {
     movable: true,
     resizable: true,
     frame: false, // Janela sem bordas com Custom Titlebar Windows 11
-    backgroundColor: '#F8FAFC',
-    title: 'PDF Studio',
+    backgroundColor: '#F4F4F5',
+    title: 'PDF Studio Beta',
     icon: appIcon,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
