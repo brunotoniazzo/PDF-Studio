@@ -104,6 +104,7 @@ export interface IWindowControls {
   close(): Promise<void>;
   isMaximized(): Promise<boolean>;
   onOpenExternalFile?(callback: (file: OpenedFileResult) => void): () => void;
+  onMaximizedChange?(callback: (isMaximized: boolean) => void): () => void;
 }
 
 export interface IPlatformAdapter {

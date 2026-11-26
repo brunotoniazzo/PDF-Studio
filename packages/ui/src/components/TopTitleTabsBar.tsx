@@ -46,11 +46,15 @@ export function TopTitleTabsBar() {
 
   const isDesktop = platform.windowControls.isDesktop;
   const closeShortcutHint = isDesktop ? 'Ctrl+W' : 'Alt+W';
+  const dragStyle = isDesktop ? ({ WebkitAppRegion: 'drag' } as React.CSSProperties) : undefined;
+  const noDragStyle = isDesktop
+    ? ({ WebkitAppRegion: 'no-drag' } as React.CSSProperties)
+    : undefined;
 
   useEffect(() => {
-    if (isDesktop) {
-      void platform.windowControls.isMaximized().then(setIsMaximized).catch(() => {});
-    }
+    if (!isDesktop) return;
+    void platform.windowControls.isMaximized().then(setIsMaximized).catch(() => {});
+    return platform.windowControls.onMaximizedChange?.(setIsMaximized);
   }, [isDesktop, platform.windowControls]);
 
   useEffect(() => {
@@ -66,25 +70,32 @@ export function TopTitleTabsBar() {
 
   return (
     <header
-      className={`relative z-40 flex h-[38px] shrink-0 select-none items-center justify-between border-b px-1.5 ${
+      className={`relative z-40 flex h-[38px] shrink-0 select-none items-center border-b px-1.5 ${
         darkMode
           ? 'border-[#334155] bg-[#1E2430] text-slate-200'
           : 'border-[#E2E8F0] bg-[#F8FAFC] text-slate-700'
       }`}
-      style={isDesktop ? ({ WebkitAppRegion: 'drag' } as React.CSSProperties) : undefined}
+      style={dragStyle}
     >
-      {/* Bloco Esquerdo: Identidade + Aba Fixa Início + Abas de Documentos */}
-      <div
-        className="flex h-full min-w-0 flex-1 items-end gap-0.5 overflow-x-auto pt-1"
-        style={isDesktop ? ({ WebkitAppRegion: 'no-drag' } as React.CSSProperties) : undefined}
-      >
-        <div className="mb-1.5 flex items-center gap-1.5 px-2 text-xs font-bold tracking-tight text-[#1B2952] dark:text-blue-400">
-          <div className="flex h-5 w-5 items-center justify-center rounded bg-[#1B2952] text-[10px] font-extrabold text-white">
-            PDF
-          </div>
-          <span className="hidden sm:inline">Studio</span>
+      {/* Identidade do aplicativo (arrastável como parte da barra de título) */}
+      <div className="flex h-full shrink-0 items-center gap-1.5 px-2 text-xs font-bold tracking-tight text-[#1B2952] dark:text-blue-400">
+        <div className="flex h-5 w-5 items-center justify-center rounded bg-[#1B2952] text-[10px] font-extrabold text-white">
+          PDF
         </div>
+        <span className="hidden sm:inline">Studio</span>
+      </div>
 
+      {/* Faixa de abas: ocupa apenas o espaço das abas abertas e rola quando necessário */}
+      <div
+        data-testid="titlebar-tabs-strip"
+        onWheel={(e) => {
+          if (e.deltaY !== 0) {
+            e.currentTarget.scrollLeft += e.deltaY;
+          }
+        }}
+        className="flex h-full min-w-0 shrink items-end gap-0.5 overflow-x-auto pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={noDragStyle}
+      >
         {/* Aba Fixa Início */}
         <button
           onClick={() => setActiveTab('home')}
@@ -178,25 +189,27 @@ export function TopTitleTabsBar() {
             </div>
           );
         })}
-
-        {/* Botão Nova Aba / Abrir PDF */}
-        <button
-          onClick={() => void openPdfFromDisk(true)}
-          title="Abrir novo PDF em aba (Ctrl+O)"
-          className="mb-1 ml-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded hover:bg-slate-500/15"
-        >
-          <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
-        </button>
       </div>
 
-      {/* Área livre arrastável da janela no Desktop */}
-      <div className="h-full min-w-[24px] flex-shrink" />
+      {/* Botão Nova Aba / Abrir PDF */}
+      <button
+        onClick={() => void openPdfFromDisk(true)}
+        title="Abrir novo PDF em aba (Ctrl+O)"
+        style={noDragStyle}
+        className="mb-1 ml-0.5 flex h-6 w-6 shrink-0 items-center justify-center self-end rounded hover:bg-slate-500/15"
+      >
+        <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
+      </button>
+
+      {/* Área livre arrastável da janela no Desktop (expande por todo espaço vazio) */}
+      <div
+        data-testid="titlebar-drag-region"
+        style={dragStyle}
+        className="h-full min-w-[56px] flex-1 shrink-0"
+      />
 
       {/* Bloco Direito: Lista suspensa de abas, Tema da UI e Controles da Janela Windows */}
-      <div
-        className="flex h-full shrink-0 items-center gap-1"
-        style={isDesktop ? ({ WebkitAppRegion: 'no-drag' } as React.CSSProperties) : undefined}
-      >
+      <div className="flex h-full shrink-0 items-center gap-1" style={noDragStyle}>
         {tabs.length > 1 && (
           <div className="relative">
             <button
@@ -314,7 +327,7 @@ export function TopTitleTabsBar() {
       {contextMenu && contextTab && (
         <div
           onClick={(e) => e.stopPropagation()}
-          style={{ left: contextMenu.x, top: contextMenu.y }}
+          style={{ left: contextMenu.x, top: contextMenu.y, ...noDragStyle }}
           className={`fixed z-50 w-56 rounded-lg border py-1 text-xs shadow-xl ${
             darkMode
               ? 'border-[#334155] bg-[#1E2430] text-slate-100'

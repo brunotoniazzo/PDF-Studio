@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeImage, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, screen, shell } from 'electron';
 import * as fs from 'node:fs/promises';
 import * as fsSync from 'node:fs';
 import * as path from 'node:path';
@@ -30,7 +30,28 @@ function getPrefsPath(file: string): string {
 function loadWindowBounds(): WindowBoundsPrefs {
   try {
     const raw = fsSync.readFileSync(getPrefsPath('window-bounds.json'), 'utf-8');
-    return { width: 1320, height: 860, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw) as Partial<WindowBoundsPrefs>;
+    const width = typeof parsed.width === 'number' ? Math.max(880, parsed.width) : 1320;
+    const height = typeof parsed.height === 'number' ? Math.max(560, parsed.height) : 860;
+    const isMaximized = Boolean(parsed.isMaximized);
+
+    const displays = screen.getAllDisplays();
+    const isVisibleOnAnyDisplay =
+      typeof parsed.x === 'number' &&
+      typeof parsed.y === 'number' &&
+      displays.some((d) => {
+        const wa = d.workArea;
+        const overlapX =
+          Math.min(parsed.x! + width, wa.x + wa.width) - Math.max(parsed.x!, wa.x);
+        const overlapY =
+          Math.min(parsed.y! + height, wa.y + wa.height) - Math.max(parsed.y!, wa.y);
+        return overlapX >= 80 && overlapY >= 40;
+      });
+
+    if (isVisibleOnAnyDisplay) {
+      return { width, height, x: parsed.x, y: parsed.y, isMaximized };
+    }
+    return { width, height, isMaximized };
   } catch {
     return { width: 1320, height: 860, isMaximized: false };
   }
@@ -121,6 +142,8 @@ async function createMainWindow() {
     y: saved.y,
     minWidth: 880,
     minHeight: 560,
+    movable: true,
+    resizable: true,
     frame: false, // Janela sem bordas com Custom Titlebar Windows 11
     backgroundColor: '#F8FAFC',
     title: 'PDF Studio',
@@ -139,6 +162,14 @@ async function createMainWindow() {
   if (saved.isMaximized) {
     mainWindow.maximize();
   }
+
+  mainWindow.on('maximize', () => {
+    mainWindow?.webContents.send('desktop:maximized-change', true);
+  });
+
+  mainWindow.on('unmaximize', () => {
+    mainWindow?.webContents.send('desktop:maximized-change', false);
+  });
 
   mainWindow.on('close', () => {
     if (mainWindow) saveWindowBounds(mainWindow);

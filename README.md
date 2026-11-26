@@ -8,7 +8,8 @@ Projetado sobre uma **Arquitetura Hexagonal em Monorepo**, o **PDF Studio** sepa
 
 ## Sumário
 
-1. [Todas as Ações Possíveis no PDF Studio](#todas-as-ações-possíveis-no-pdf-studio)
+1. [Releases e Downloads](#releases-e-downloads)
+2. [Todas as Ações Possíveis no PDF Studio](#todas-as-ações-possíveis-no-pdf-studio)
    - [1. Gestão de Documentos, Abas e Sessão](#1-gestão-de-documentos-abas-e-sessão)
    - [2. Modo Visualizar — Leitura, Navegação e Busca](#2-modo-visualizar--leitura-navegação-e-busca)
    - [3. Modo Comentar — Anotações, Revisão e Medição](#3-modo-comentar--anotações-revisão-e-medição)
@@ -17,10 +18,35 @@ Projetado sobre uma **Arquitetura Hexagonal em Monorepo**, o **PDF Studio** sepa
    - [6. Modo Formulários — AcroForms Interativos](#6-modo-formulários--acroforms-interativos)
    - [7. Modo Proteger — Assinaturas, Privacidade e Tarjamento LGPD](#7-modo-proteger--assinaturas-privacidade-e-tarjamento-lgpd)
    - [8. Modo Converter e Otimizar — OCR, Compressão e Exportações](#8-modo-converter-e-otimizar--ocr-compressão-e-exportações)
-2. [Atalhos de Teclado e Interações de Ponteiro](#atalhos-de-teclado-e-interações-de-ponteiro)
-3. [Arquitetura Hexagonal do Monorepo](#arquitetura-hexagonal-do-monorepo)
-4. [Stack Tecnológica e Licenças Permissivas](#stack-tecnológica-e-licenças-permissivas)
-5. [Como Executar, Testar e Gerar Instaladores](#como-executar-testar-e-gerar-instaladores)
+3. [Atalhos de Teclado e Interações de Ponteiro](#atalhos-de-teclado-e-interações-de-ponteiro)
+4. [Arquitetura Hexagonal do Monorepo](#arquitetura-hexagonal-do-monorepo)
+5. [Stack Tecnológica e Licenças Permissivas](#stack-tecnológica-e-licenças-permissivas)
+6. [Como Executar, Testar e Gerar Instaladores](#como-executar-testar-e-gerar-instaladores)
+
+---
+
+## Releases e Downloads
+
+Os binários pré-compilados para **Windows 10 / 11 (x64)** ficam versionados em [`apps/desktop-windows/release/`](apps/desktop-windows/release) e também podem ser acompanhados na aba de [GitHub Releases](https://github.com/brunotoniazzo/PDF-Studio/releases).
+
+### Downloads Diretos — Versão `v1.0.0` (Windows 10 / 11 — 64 bits)
+
+| Distribuição | Arquivo | Tamanho Aprox. | Descrição |
+| --- | --- | --- | --- |
+| **Instalador Windows (NSIS Setup)** | [PDF Studio Setup 1.0.0.exe](https://github.com/brunotoniazzo/PDF-Studio/raw/main/apps/desktop-windows/release/PDF%20Studio%20Setup%201.0.0.exe) | ~72,9 MB | Instalação assistida com seleção de pasta, atalhos na Área de Trabalho e Menu Iniciar, ícone nativo na barra de tarefas e associação de arquivos `.pdf`. |
+| **Executável Portátil (Standalone)** | [PDF Studio 1.0.0.exe](https://github.com/brunotoniazzo/PDF-Studio/raw/main/apps/desktop-windows/release/PDF%20Studio%201.0.0.exe) | ~72,7 MB | Execução direta sem instalação prévia e sem necessidade de permissões de administrador. |
+
+### Histórico de Versões (`Changelog`)
+
+#### Atualização de `26/11/2026` (`v1.0.0` — Desktop UX & Multi-Monitor)
+- **Arraste livre pela barra superior:** A área vazia da barra superior de título e abas (`TopTitleTabsBar`) permanece totalmente arrastável no Desktop Windows enquanto as abas abertas não preenchem a barra, preservando uma faixa mínima arrastável mesmo com muitos documentos abertos e rolagem horizontal das abas pela roda do mouse.
+- **Suporte aprimorado a múltiplos monitores:** Movimentação livre da janela entre áreas do monitor e múltiplas telas, suporte nativo a *Aero Snap*, sincronização em tempo real do botão *Maximizar/Restaurar* ao encaixar/desencaixar a janela e validação automática das coordenadas salvas ao desconectar monitores externos.
+
+#### Atualizações de `24/11/2026` (`v1.0.0` — Lançamento Inicial & Evoluções do Editor)
+- **Identidade Windows nativa:** Incorporação de ícone PE multi-resolução customizado e `AppUserModelId` para exibição correta na barra de tarefas do Windows 11.
+- **Edição avançada de texto PDF:** Blocos de texto livremente expansíveis e reposicionáveis, com formatação rica por palavra/trecho selecionado (negrito, itálico, sublinhado, fonte, tamanho e cor) persistida diretamente via PDFium WASM.
+- **Empacotamento otimizado:** Geração de executáveis Windows (`.exe` NSIS e Portátil) abaixo de 73 MiB diretamente no repositório, sem dependência de Git LFS.
+- **Lançamento inicial Local-First (Windows Desktop & Web PWA):** Leitura virtualizada, anotações e medição em `mm`, organização de páginas, formulários AcroForm, tarjamento definitivo LGPD, assinatura eletrônica visual e OCR local com `tesseract.js`.
 
 ---
 

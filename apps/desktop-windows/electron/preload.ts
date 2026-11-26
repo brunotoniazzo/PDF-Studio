@@ -5,6 +5,11 @@ contextBridge.exposeInMainWorld('pdfStudioDesktop', {
   toggleMaximize: () => ipcRenderer.invoke('window:toggleMaximize'),
   isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
   close: () => ipcRenderer.invoke('window:close'),
+  onMaximizedChange: (cb: (isMaximized: boolean) => void) => {
+    const handler = (_ev: unknown, value: unknown) => cb(Boolean(value));
+    ipcRenderer.on('desktop:maximized-change', handler);
+    return () => ipcRenderer.removeListener('desktop:maximized-change', handler);
+  },
 
   openPdfDialog: (multiple: boolean) => ipcRenderer.invoke('dialog:openPdf', multiple),
   openImageDialog: (multiple: boolean) => ipcRenderer.invoke('dialog:openImage', multiple),

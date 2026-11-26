@@ -14,6 +14,7 @@ interface DesktopBridge {
   toggleMaximize: () => Promise<boolean>;
   isMaximized: () => Promise<boolean>;
   close: () => Promise<void>;
+  onMaximizedChange: (cb: (isMaximized: boolean) => void) => () => void;
   openPdfDialog: (multiple: boolean) => Promise<OpenedFileResult[]>;
   openImageDialog: (multiple: boolean) => Promise<OpenedFileResult[]>;
   readFileByPath: (filePath: string) => Promise<OpenedFileResult | null>;
@@ -226,6 +227,9 @@ export function createDesktopWindowsAdapter(): IPlatformAdapter {
       },
       onOpenExternalFile(cb) {
         return bridge ? bridge.onExternalFile(cb) : () => {};
+      },
+      onMaximizedChange(cb) {
+        return bridge ? bridge.onMaximizedChange(cb) : () => {};
       },
     },
   };
