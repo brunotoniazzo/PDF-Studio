@@ -5,7 +5,11 @@ import {
   getEffectiveRichStyle,
   runsToPlainText,
 } from '../utils/richTextRuns';
-import { layoutRichRunsToStyledLines } from '../utils/textBlockCommit';
+import {
+  autoFitDraftRect,
+  createDraftFromTextBlock,
+  layoutRichRunsToStyledLines,
+} from '../utils/textBlockCommit';
 
 const baseStyle: RichTextStyle = {
   fontFamily: 'sans',
@@ -91,5 +95,53 @@ describe('Formatação Rica por Seleção de Palavra vs. Bloco Inteiro', () => {
     expect(lines[0].segments[1].standardFontName).toBe('Helvetica-Bold');
     expect(lines[0].segments[1].isUnderline).toBe(true);
     expect(lines[0].segments[2].standardFontName).toBe('Helvetica-Oblique');
+  });
+
+  it('autoajusta a largura do bloco curto sem quebrar linha prematuramente e expande altura em múltiplas linhas', () => {
+    const shortBlock = {
+      id: 'blk-1',
+      pageIndex: 0,
+      rect: { left: 60, bottom: 700, right: 135, top: 716 },
+      lines: [{ text: 'Empresa XYZ', rect: { left: 60, bottom: 700, right: 135, top: 716 }, baselineYPt: 702 }],
+      objectIndices: [0],
+      rawFontName: 'Helvetica',
+      cleanFontName: 'Helvetica',
+      fallbackFontFamily: 'sans' as const,
+      isSubsetFont: false,
+      fontSizePt: 11,
+      lineHeightPt: 14,
+      colorHex: '#1E293B',
+      rgba: [30, 41, 59, 255] as [number, number, number, number],
+      alignment: 'left' as const,
+      originalText: 'Empresa XYZ',
+    };
+    const draft = createDraftFromTextBlock(shortBlock);
+    const expandedRuns: RichTextRun[] = [
+      { text: 'Empresa Brasileira de Tecnologia Ltda', style: { ...baseStyle } },
+    ];
+    const pageGeo = {
+      pageIndex: 0,
+      widthPt: 595,
+      heightPt: 842,
+      cropBox: { left: 0, bottom: 0, right: 595, top: 842 },
+      rotation: 0 as const,
+    };
+
+    const fitted = autoFitDraftRect(draft, expandedRuns, 14, pageGeo);
+    // Deve ter expandido horizontalmente para além dos 75 pt originais sem quebrar linha
+    expect(fitted.right - fitted.left).toBeGreaterThan(180);
+    const wrapped = layoutRichRunsToStyledLines(expandedRuns, fitted.right - fitted.left);
+    expect(wrapped).toHaveLength(1);
+
+    // Texto longo que excede a margem útil da página deve expandir para baixo automaticamente
+    const longRuns: RichTextRun[] = [
+      {
+        text: 'Este texto é intencionalmente muito longo para caber em uma única linha até a margem direita da página A4 e portanto precisa aumentar a altura do bloco automaticamente em múltiplas linhas sem truncar nem sobrepor.',
+        style: { ...baseStyle },
+      },
+    ];
+    const tallFit = autoFitDraftRect(draft, longRuns, 14, pageGeo);
+    expect(tallFit.right).toBeLessThanOrEqual(595 - 28 + 0.5);
+    expect(tallFit.top - tallFit.bottom).toBeGreaterThan(26);
   });
 });

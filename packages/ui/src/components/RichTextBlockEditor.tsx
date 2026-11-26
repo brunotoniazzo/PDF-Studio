@@ -31,7 +31,7 @@ import {
   restoreSelectionOffsetsInDom,
   runsToPlainText,
 } from '../utils/richTextRuns';
-import { commitTextBlockDraftToPdf } from '../utils/textBlockCommit';
+import { autoFitDraftRect, commitTextBlockDraftToPdf } from '../utils/textBlockCommit';
 import { CollabDivider, CollabToolbar, TextureButton } from './cult/CultUiPrimitives';
 
 export type BlockResizeMode =
@@ -56,11 +56,21 @@ export function applyPatchToDraft(
     patch,
     draft.defaultStyle
   );
-  usePdfStudioStore.getState().updateTabState(tabId, {
+  const store = usePdfStudioStore.getState();
+  const pageGeo =
+    store.tabs.find((t) => t.tabId === tabId)?.geometries[draft.pageIndex] ?? null;
+  const nextRect = autoFitDraftRect(
+    { ...draft, fontSizePt: defaultStyle.fontSizePt },
+    runs,
+    draft.lineHeightPt,
+    pageGeo
+  );
+  store.updateTabState(tabId, {
     activeTextBlockDraft: {
       ...draft,
       runs,
       defaultStyle,
+      rect: nextRect,
       text: runsToPlainText(runs),
       formatRevision: draft.formatRevision + 1,
       fontSizePt: defaultStyle.fontSizePt,
@@ -174,15 +184,22 @@ export function RichTextBlockEditor({
 
     const parsedRuns = parseEditableDomToRuns(el, curDraft.defaultStyle);
     const offsets = readSelectionOffsetsInDom(el) ?? curDraft.selection;
+    const nextRect = autoFitDraftRect(
+      curDraft,
+      parsedRuns,
+      curDraft.lineHeightPt,
+      geometry
+    );
     updateTabState(tab.tabId, {
       activeTextBlockDraft: {
         ...curDraft,
         runs: parsedRuns,
         text: runsToPlainText(parsedRuns),
+        rect: nextRect,
         selection: offsets,
       },
     });
-  }, [tab.tabId, updateTabState]);
+  }, [tab.tabId, geometry, updateTabState]);
 
   const toggleBold = () => {
     applyPatchToDraft(tab.tabId, draft, { isBold: !effectiveStyle.isBold });
@@ -212,8 +229,8 @@ export function RichTextBlockEditor({
         style={{
           left: Math.max(0, draftBox.x * cssScale - 4),
           top: Math.max(0, draftBox.y * cssScale - 2),
-          width: Math.max(110, draftBox.width * cssScale + 16),
-          minHeight: Math.max(36, draftBox.height * cssScale + 8),
+          width: Math.max(64, draftBox.width * cssScale + 12),
+          minHeight: Math.max(30, draftBox.height * cssScale + 6),
           backgroundColor: draft.opaqueBackground
             ? draft.backgroundColorHex
             : 'rgba(255,255,255,0.97)',
@@ -314,14 +331,22 @@ export function RichTextBlockEditor({
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
                 const margin = 36;
+                const nextRect = {
+                  ...draft.rect,
+                  left: geometry.cropBox.left + margin,
+                  right: geometry.cropBox.left + effSize.widthPt - margin,
+                };
+                const fitted = autoFitDraftRect(
+                  { ...draft, rect: nextRect, hasManualWidthResize: true },
+                  draft.runs,
+                  draft.lineHeightPt,
+                  geometry
+                );
                 updateTabState(tab.tabId, {
                   activeTextBlockDraft: {
                     ...draft,
-                    rect: {
-                      ...draft.rect,
-                      left: geometry.cropBox.left + margin,
-                      right: geometry.cropBox.left + effSize.widthPt - margin,
-                    },
+                    rect: fitted,
+                    hasManualWidthResize: true,
                   },
                 });
               }}
@@ -402,9 +427,10 @@ export function RichTextBlockEditor({
           style={{
             lineHeight: `${Math.max(12, draft.lineHeightPt * cssScale)}px`,
             textAlign: draft.alignment,
-            minHeight: Math.max(28, draftBox.height * cssScale),
+            minHeight: Math.max(24, draftBox.height * cssScale),
             whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
+            wordBreak: 'normal',
+            overflowWrap: 'break-word',
           }}
           className="w-full flex-1 cursor-text p-1.5 outline-none selection:bg-[#1A94FF]/20"
         />

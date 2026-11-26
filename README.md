@@ -49,6 +49,11 @@ Você também pode acompanhar as versões na aba de [GitHub Releases](https://gi
 
 ### Histórico de Versões (`Changelog`)
 
+#### Atualização do Modo Editar de `26/11/2026` (Aplicada em todas as releases: `v2.0.0-beta.1` e `v1.0.0`)
+- **Reflow automático anti-sobreposição no PDF (`pdfium.worker.ts`):** Ao expandir um bloco editado (horizontalmente ou adicionando novas linhas), objetos à direita na mesma linha e parágrafos/blocos abaixo são automaticamente reposicionados preservando o espaçamento original (expandindo `MediaBox`/`CropBox` quando necessário) e aplicando fundo opaco protetor em deslocamentos livres ou sobreposições residuais.
+- **Autoajuste dinâmico da caixa de texto (`autoFitDraftRect`):** Blocos curtos expandem automaticamente sua largura até a margem útil da página conforme o usuário digita ou altera o estilo/tamanho da fonte, evitando quebras prematuras de linha e adaptando a altura vertical em múltiplas linhas (mantendo respeito a ajustes manuais pelas alças e botão **Auto** no Inspetor Direito).
+- **Correção exata de espaçamento entre letras e segmentos (`analyzeEditableTextBlocks` & `commitEditedTextBlockInWorker`):** Filtragem de espaços sintéticos de kerning (`FPDFText_IsGenerated`) em fragmentos adjacentes, ordenação por *baseline* real (`FPDFText_GetCharOrigin`), fusão automática de segmentos consecutivos de mesmo estilo e cálculo exato de avanço tipográfico com marcadores delimitadores sem introduzir espaços fantasmas em palavras não alteradas.
+
 #### Atualização Beta de `26/11/2026` (`v2.0.0-beta.1` — PDF Studio Beta · Cult UI Edition)
 - **Reformulação Visual Completa com Cult UI (`packages/ui/src/components/cult/CultUiPrimitives.tsx`):**
   - **`TextureCard` & `TextureSeparator`:** Superfícies chanfradas com 5 camadas concêntricas de borda e divisores de sulco duplo na Tela Inicial, Documentos Recentes, desbloqueio por senha e resumos de compressão.
@@ -131,9 +136,10 @@ Você também pode acompanhar as versões na aba de [GitHub Releases](https://gi
 ---
 
 ### 4. Modo Editar — Edição Direta de Texto, Imagens e Elementos Globais
-- **Edição Real e Expansível de Texto Existente:**
-  - Reconstrói automaticamente fragmentos `FPDF_PAGEOBJ_TEXT` da página em linhas e parágrafos editáveis;
-  - Com clique simples ou duplo sobre qualquer bloco, ativa a caixa interativa na Camada 4 com **8 alças de redimensionamento/expansão livre**, **barra de movimentação para qualquer posição da página** e atalho **Expandir largura** para ampliar o bloco além dos limites originais do PDF;
+- **Edição Real e Autoajustável de Texto Existente:**
+  - Reconstrói automaticamente fragmentos `FPDF_PAGEOBJ_TEXT` da página por *baseline* real (`FPDFText_GetCharOrigin`) filtrando espaços falsos de kerning em palavras fragmentadas;
+  - Com clique simples ou duplo sobre qualquer bloco, ativa a caixa interativa na Camada 4 que **autoajusta largura e altura em tempo real** conforme o texto digitado (até a margem útil da página antes de quebrar linhas), contando também com **8 alças de redimensionamento livre**, **barra de movimentação** e atalho **Expandir largura**;
+  - Ao gravar, executa **reflow automático** de elementos adjacentes à direita e inferiores na coluna (sem sobrepor textos existentes do PDF) e preserva espaçamento tipográfico exato entre segmentos de formatação mista;
   - Formatação rica **por palavra/trecho selecionado ou bloco inteiro**: ao selecionar uma palavra ou trecho específico, aplicar **Negrito (`Ctrl+B`)**, **Itálico (`Ctrl+I`)**, **Sublinhado (`Ctrl+U`)**, **Família da Fonte**, **Tamanho (`pt`)** ou **Cor** altera **exclusivamente o trecho selecionado** (tanto visualmente no editor quanto no *stream* final do PDFium WASM); quando não há seleção ativa, a alteração aplica-se ao bloco inteiro;
   - Controle completo em tempo real no Inspetor Direito: indicador de escopo (*Trecho selecionado* vs. *Bloco inteiro*), largura/altura em `pt` e `mm`, entrelinha, alinhamento (*esquerda*, *centro*, *direita*), cobertura opcional de fundo e exclusão do bloco;
   - Remove prefixos de fontes em *subset*, aplica fallback métrico compatível (*Liberation Sans / Arial*, *Liberation Serif / Times*, *Liberation Mono / Courier*, *Carlito / Calibri* — carregando fontes TrueType CID nativas do Windows quando disponíveis) e regrava o *content stream* real via `FPDFPage_GenerateContent`.

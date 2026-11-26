@@ -58,7 +58,7 @@ import {
   getSelectedTextPreview,
   hasActiveSubstringSelection,
 } from '../utils/richTextRuns';
-import { commitTextBlockDraftToPdf } from '../utils/textBlockCommit';
+import { autoFitDraftRect, commitTextBlockDraftToPdf } from '../utils/textBlockCommit';
 import { applyPatchToDraft } from './RichTextBlockEditor';
 import {
   DirectionAwareTabs,
@@ -529,9 +529,37 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                       <div className="space-y-2.5 p-3">
                         <div className="flex items-center justify-between text-[11px] font-medium text-neutral-600 dark:text-neutral-300">
                           <span>Dimensões do Bloco</span>
-                          <span className="font-mono tabular-nums">
-                            {ptToMm(boxWidthPt)} × {ptToMm(boxHeightPt)} mm
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            {(draft.hasManualWidthResize || draft.hasManualHeightResize) && (
+                              <button
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() =>
+                                  patchDraft({
+                                    hasManualWidthResize: false,
+                                    hasManualHeightResize: false,
+                                    rect: autoFitDraftRect(
+                                      {
+                                        ...draft,
+                                        hasManualWidthResize: false,
+                                        hasManualHeightResize: false,
+                                      },
+                                      draft.runs,
+                                      draft.lineHeightPt,
+                                      curGeo
+                                    ),
+                                  })
+                                }
+                                title="Restaurar ajuste automático de largura e altura"
+                                className="rounded bg-[#1A94FF]/15 px-1.5 py-0.5 text-[10px] font-semibold text-[#1A94FF] hover:bg-[#1A94FF]/25"
+                              >
+                                Auto
+                              </button>
+                            )}
+                            <span className="font-mono tabular-nums">
+                              {ptToMm(boxWidthPt)} × {ptToMm(boxHeightPt)} mm
+                            </span>
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-2">
@@ -547,6 +575,7 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                               onChange={(e) => {
                                 const nextW = Math.max(28, Number(e.target.value) || 28);
                                 patchDraft({
+                                  hasManualWidthResize: true,
                                   rect: {
                                     ...draft.rect,
                                     right: draft.rect.left + nextW,
@@ -568,6 +597,7 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                               onChange={(e) => {
                                 const nextH = Math.max(16, Number(e.target.value) || 16);
                                 patchDraft({
+                                  hasManualHeightResize: true,
                                   rect: {
                                     ...draft.rect,
                                     bottom: draft.rect.top - nextH,
@@ -587,12 +617,19 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                           onClick={() => {
                             const margin = 36;
                             const x0 = curGeo?.cropBox.left ?? 0;
+                            const nextRect = {
+                              ...draft.rect,
+                              left: x0 + margin,
+                              right: x0 + effPage.widthPt - margin,
+                            };
                             patchDraft({
-                              rect: {
-                                ...draft.rect,
-                                left: x0 + margin,
-                                right: x0 + effPage.widthPt - margin,
-                              },
+                              hasManualWidthResize: true,
+                              rect: autoFitDraftRect(
+                                { ...draft, rect: nextRect, hasManualWidthResize: true },
+                                draft.runs,
+                                draft.lineHeightPt,
+                                curGeo
+                              ),
                             });
                           }}
                         >
@@ -641,10 +678,12 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                                 .getState()
                                 .tabs.find((t) => t.tabId === tab.tabId)?.activeTextBlockDraft;
                               if (latest) {
+                                const nextLh = Math.round(fs * 1.25 * 10) / 10;
                                 updateTabState(tab.tabId, {
                                   activeTextBlockDraft: {
                                     ...latest,
-                                    lineHeightPt: Math.round(fs * 1.25 * 10) / 10,
+                                    lineHeightPt: nextLh,
+                                    rect: autoFitDraftRect(latest, latest.runs, nextLh, curGeo),
                                   },
                                 });
                               }
@@ -663,11 +702,13 @@ export function RightPropertyInspector({ tab }: { tab: DocumentTabState }) {
                           max={120}
                           step={0.5}
                           value={draft.lineHeightPt}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            const nextLh = Math.max(6, Number(e.target.value) || 14);
                             patchDraft({
-                              lineHeightPt: Math.max(6, Number(e.target.value) || 14),
-                            })
-                          }
+                              lineHeightPt: nextLh,
+                              rect: autoFitDraftRect(draft, draft.runs, nextLh, curGeo),
+                            });
+                          }}
                           className="tabular-nums"
                         />
                       </div>

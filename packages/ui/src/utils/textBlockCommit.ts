@@ -2,6 +2,8 @@ import type {
   IPlatformAdapter,
   MetricFontFamily,
   PdfEditableTextBlock,
+  PdfPageGeometry,
+  PdfRect,
   RichTextRun,
   RichTextStyle,
 } from '@pdf-studio/platform-contracts';
@@ -208,6 +210,86 @@ export function layoutRichRunsToStyledLines(
   return finalLines;
 }
 
+/**
+ * Calcula largura/altura ideais do bloco conforme o texto digitado e estilos aplicados,
+ * expandindo horizontalmente até a margem útil da página antes de quebrar linhas.
+ */
+export function autoFitDraftRect(
+  draft: ActiveTextBlockDraft,
+  runs: RichTextRun[],
+  lineHeightPt: number,
+  pageGeometry?: PdfPageGeometry | null
+): PdfRect {
+  const canvas =
+    typeof document !== 'undefined' ? document.createElement('canvas') : null;
+  const ctx = canvas?.getContext('2d') ?? null;
+
+  const measureSegWidthPt = (txt: string, st: RichTextStyle): number => {
+    if (!txt) return 0;
+    if (!ctx) return txt.length * st.fontSizePt * (st.isBold ? 0.56 : 0.52);
+    const weight = st.isBold ? 'bold' : 'normal';
+    const italic = st.isItalic ? 'italic' : 'normal';
+    ctx.font = `${italic} ${weight} ${st.fontSizePt}px ${cssFontStackForMetric(st.fontFamily)}`;
+    return ctx.measureText(txt).width;
+  };
+
+  // Calcula largura natural de cada parágrafo explícito para expandir em vez de quebrar precocemente
+  let maxNaturalLineWidthPt = 0;
+  let currentParaWidthPt = 0;
+  for (const r of runs) {
+    const parts = r.text.replace(/\r\n/g, '\n').split('\n');
+    for (let i = 0; i < parts.length; i++) {
+      if (i > 0) {
+        maxNaturalLineWidthPt = Math.max(maxNaturalLineWidthPt, currentParaWidthPt);
+        currentParaWidthPt = 0;
+      }
+      if (parts[i]) {
+        currentParaWidthPt += measureSegWidthPt(parts[i], r.style);
+      }
+    }
+  }
+  maxNaturalLineWidthPt = Math.max(maxNaturalLineWidthPt, currentParaWidthPt);
+
+  const origWidthPt = Math.max(28, draft.sourceBlock.rect.right - draft.sourceBlock.rect.left);
+  const currentWidthPt = Math.max(28, draft.rect.right - draft.rect.left);
+
+  let nextRight = draft.rect.left + currentWidthPt;
+  if (!draft.hasManualWidthResize) {
+    const pageLeft = pageGeometry?.cropBox.left ?? 0;
+    const pageRight =
+      pageGeometry?.cropBox.right ?? pageLeft + (pageGeometry?.widthPt ?? 595.28);
+    const maxAvailWidthPt = Math.max(64, pageRight - 28 - draft.rect.left);
+    const paddedNaturalWidthPt = maxNaturalLineWidthPt + 12;
+    const minBaselineWidthPt = draft.alignment !== 'left' ? origWidthPt : 44;
+    const targetWidthPt = Math.min(
+      maxAvailWidthPt,
+      Math.max(minBaselineWidthPt, paddedNaturalWidthPt)
+    );
+    nextRight = draft.rect.left + targetWidthPt;
+  }
+
+  const finalBoxWidthPt = Math.max(28, nextRight - draft.rect.left);
+  const styledLines = layoutRichRunsToStyledLines(runs, finalBoxWidthPt);
+  const effectiveLineCount = Math.max(1, styledLines.length);
+  const effectiveStepY = Math.max(lineHeightPt, draft.fontSizePt * 1.2);
+  const minFitHeightPt = Math.max(
+    16,
+    (effectiveLineCount - 1) * effectiveStepY + Math.max(lineHeightPt, draft.fontSizePt * 1.32)
+  );
+
+  const currentHeightPt = Math.max(16, draft.rect.top - draft.rect.bottom);
+  const nextHeightPt = draft.hasManualHeightResize
+    ? Math.max(currentHeightPt, minFitHeightPt)
+    : minFitHeightPt;
+
+  return {
+    left: draft.rect.left,
+    right: nextRight,
+    top: draft.rect.top,
+    bottom: draft.rect.top - nextHeightPt,
+  };
+}
+
 export function createDraftFromTextBlock(block: PdfEditableTextBlock): ActiveTextBlockDraft {
   const defaultStyle: RichTextStyle = {
     fontFamily: block.fallbackFontFamily,
@@ -331,7 +413,9 @@ export async function commitTextBlockDraftToPdf(params: {
       draft.defaultStyle.fontSizePt
     ) ?? draft.defaultStyle.fontSizePt;
 
-  const topMoved = Math.abs(draft.rect.top - block.rect.top) > 0.5;
+  const topMoved = Math.abs(draft.rect.top - block.rect.top) > 1.5;
+  const wasManuallyMoved =
+    Math.abs(draft.rect.left - block.rect.left) > 1.5 || topMoved;
   const firstSizeChanged = Math.abs(maxFirstLineFontPt - block.fontSizePt) > 0.2;
   const topBaselineYPt =
     !topMoved && !firstSizeChanged && block.lines[0]?.baselineYPt
@@ -344,8 +428,12 @@ export async function commitTextBlockDraftToPdf(params: {
     draft.defaultStyle.isBold,
     draft.defaultStyle.isItalic
   );
+  const autoCoverBackgroundRgba = hexToRgbaTuple(
+    draft.backgroundColorHex || block.backgroundColorHex || '#FFFFFF',
+    255
+  );
   const backgroundFillRgba = draft.opaqueBackground
-    ? hexToRgbaTuple(draft.backgroundColorHex || '#FFFFFF', 255)
+    ? autoCoverBackgroundRgba
     : null;
 
   const committed = await sharedPdfEngine.commitTextBlock({
@@ -363,6 +451,9 @@ export async function commitTextBlockDraftToPdf(params: {
         topBaselineYPt - Math.max(1, styledLines.length) * draft.lineHeightPt
       ),
       boxTopYPt: draft.rect.top,
+      origRect: block.rect,
+      wasManuallyMoved,
+      autoCoverBackgroundRgba,
       topBaselineYPt,
       lineHeightPt: draft.lineHeightPt,
       fontSizePt: draft.defaultStyle.fontSizePt,

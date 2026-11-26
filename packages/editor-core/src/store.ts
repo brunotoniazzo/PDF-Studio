@@ -50,6 +50,8 @@ export interface ActiveTextBlockDraft {
   rgba: [number, number, number, number];
   opaqueBackground: boolean;
   backgroundColorHex: string;
+  hasManualWidthResize?: boolean;
+  hasManualHeightResize?: boolean;
 }
 
 export interface DocumentTabState {

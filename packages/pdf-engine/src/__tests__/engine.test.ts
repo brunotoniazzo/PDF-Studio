@@ -24,6 +24,10 @@ import {
   svgRectToPdf,
 } from '../index';
 import type { PdfPageGeometry } from '@pdf-studio/platform-contracts';
+import fs from 'node:fs';
+import path from 'node:path';
+import { init } from '@embedpdf/pdfium';
+import { __pdfiumWorkerTestHooks } from '../workers/pdfium.worker';
 
 describe('Matemática de Coordenadas PDF <-> CSS / SVG e Ramer-Douglas-Peucker', () => {
   const a4Geometry: PdfPageGeometry = {
@@ -142,5 +146,161 @@ describe('Operações Estruturais PDF, Formulários AcroForm e Segurança', () =
     expect(applyFormFieldMask('41892031744', 'cpf')).toBe('418.920.317-44');
     expect(applyFormFieldMask('33641890000112', 'cnpj')).toBe('33.641.890/0001-12');
     expect(applyFormFieldMask('24112026', 'date')).toBe('24/11/2026');
+  });
+});
+
+describe('Worker PDFium: Análise de Blocos, Espaçamento Exato e Reflow Anti-Sobreposição', () => {
+  it('agrupa palavras fragmentadas por kerning sem inserir espaços falsos e preserva espaçamento e reflow no commit', async () => {
+    const wasmPath = path.resolve(
+      __dirname,
+      '../../../../node_modules/@embedpdf/pdfium/dist/pdfium.wasm'
+    );
+    const wasmBinary = fs.readFileSync(wasmPath);
+    const mod = await init({ wasmBinary });
+    mod.PDFiumExt_Init();
+
+    // Cria PDF com palavra fragmentada ("Admi" + "nistracao"), outra linha logo abaixo e bloco vizinho à direita
+    const docPtr = mod.FPDF_CreateNewDocument();
+    const pagePtr = mod.FPDFPage_New(docPtr, 0, 595, 842);
+    const fontPtr = mod.FPDFText_LoadStandardFont(docPtr, 'Helvetica');
+
+    const insertText = (txt: string, x: number, y: number, fs = 12) => {
+      const obj = mod.FPDFPageObj_CreateTextObj(docPtr, fontPtr, fs);
+      const u16 = mod.pdfium.wasmExports.malloc((txt.length + 1) * 2);
+      mod.pdfium.stringToUTF16(txt, u16, (txt.length + 1) * 2);
+      mod.FPDFText_SetText(obj, u16);
+      mod.pdfium.wasmExports.free(u16);
+      mod.FPDFPageObj_Transform(obj, 1, 0, 0, 1, x, y);
+      mod.FPDFPage_InsertObject(pagePtr, obj);
+    };
+
+    // Mede avanço exato de "Admi" via PDFium e posiciona "nistracao" apenas com ~0.8pt de kerning (gap < espaço)
+    const tmpObj = mod.FPDFPageObj_CreateTextObj(docPtr, fontPtr, 12);
+    const uTmp = mod.pdfium.wasmExports.malloc(10);
+    mod.pdfium.stringToUTF16('Admi', uTmp, 10);
+    mod.FPDFText_SetText(tmpObj, uTmp);
+    const bPtr = mod.pdfium.wasmExports.malloc(16);
+    mod.FPDFPageObj_GetBounds(tmpObj, bPtr, bPtr + 4, bPtr + 8, bPtr + 12);
+    const pdfiumHeap = mod.pdfium as unknown as { HEAPU8: Uint8Array; HEAPF32: Float32Array };
+    const admiRight = pdfiumHeap.HEAPF32[(bPtr + 8) >> 2];
+    mod.pdfium.wasmExports.free(uTmp);
+    mod.pdfium.wasmExports.free(bPtr);
+    mod.FPDFPageObj_Destroy(tmpObj);
+
+    insertText('Admi', 60, 740, 12);
+    insertText('nistracao', 60 + admiRight + 0.6, 740, 12);
+    insertText('Geral', 148, 740, 12);
+    // Linha imediatamente abaixo dentro da área de colisão potencial se o bloco crescer para baixo
+    insertText('Paragrafo inferior intacto', 60, 718, 12);
+    mod.FPDFPage_GenerateContent(pagePtr);
+
+    // Salva em bytes
+    const chunks: Uint8Array[] = [];
+    const adapter = {
+      WriteBlock: (_pThis: number, pData: number, size: number) => {
+        chunks.push(new Uint8Array(pdfiumHeap.HEAPU8.subarray(pData, pData + size)));
+        return 1;
+      },
+    };
+    const fileWritePtr = mod.pdfium.addFunction(adapter.WriteBlock, 'iiii');
+    const structPtr = mod.pdfium.wasmExports.malloc(8);
+    new DataView(pdfiumHeap.HEAPU8.buffer).setInt32(structPtr, 1, true);
+    new DataView(pdfiumHeap.HEAPU8.buffer).setInt32(structPtr + 4, fileWritePtr, true);
+    mod.FPDF_SaveAsCopy(docPtr, structPtr, 0);
+    mod.pdfium.removeFunction(fileWritePtr);
+    mod.pdfium.wasmExports.free(structPtr);
+    mod.FPDF_ClosePage(pagePtr);
+    mod.FPDF_CloseDocument(docPtr);
+
+    const totalLen = chunks.reduce((s, c) => s + c.length, 0);
+    const pdfBytes = new Uint8Array(totalLen);
+    let offset = 0;
+    for (const c of chunks) {
+      pdfBytes.set(c, offset);
+      offset += c.length;
+    }
+
+    const docId = 'test-doc-spacing-reflow';
+    __pdfiumWorkerTestHooks.loadDocIntoHeap(mod, { docId, bytes: pdfBytes });
+    try {
+      const blocks = __pdfiumWorkerTestHooks.analyzeEditableTextBlocks(mod, docId, 0);
+      const topBlock = blocks.find((b) => b.originalText.includes('Admin'))!;
+      expect(topBlock).toBeDefined();
+      // NÃO pode inserir espaço falso entre "Admi" e "nistracao"
+      expect(topBlock.originalText).toContain('Administracao');
+      expect(topBlock.originalText).toContain('Geral');
+
+      // Agora edita o bloco mantendo "Administracao " e destacando "Geral" em negrito em 2 linhas, forçando crescimento vertical
+      const committed = __pdfiumWorkerTestHooks.commitEditedTextBlockInWorker(mod, {
+        docId,
+        pageIndex: 0,
+        oldObjectIndices: topBlock.objectIndices,
+        lines: ['Administracao Geral', 'Segunda linha expandida'],
+        styledLines: [
+          {
+            segments: [
+              {
+                text: 'Administracao ',
+                fontKey: 'sans:rn',
+                standardFontName: 'Helvetica',
+                fontSizePt: 12,
+                isUnderline: false,
+                rgba: [0, 0, 0, 255],
+              },
+              {
+                text: 'Geral',
+                fontKey: 'sans:bn',
+                standardFontName: 'Helvetica-Bold',
+                fontSizePt: 12,
+                isUnderline: false,
+                rgba: [0, 0, 0, 255],
+              },
+            ],
+          },
+          {
+            segments: [
+              {
+                text: 'Segunda linha expandida',
+                fontKey: 'sans:rn',
+                standardFontName: 'Helvetica',
+                fontSizePt: 12,
+                isUnderline: false,
+                rgba: [0, 0, 0, 255],
+              },
+            ],
+          },
+        ],
+        style: {
+          xPt: topBlock.rect.left,
+          boxWidthPt: 260,
+          boxTopYPt: topBlock.rect.top,
+          boxBottomYPt: topBlock.rect.top - 34,
+          origRect: topBlock.rect,
+          wasManuallyMoved: false,
+          autoCoverBackgroundRgba: [255, 255, 255, 255],
+          topBaselineYPt: topBlock.lines[0].baselineYPt,
+          lineHeightPt: 15,
+          fontSizePt: 12,
+          alignment: 'left',
+          rgba: [0, 0, 0, 255],
+          backgroundFillRgba: null,
+          standardFontName: 'Helvetica',
+        },
+      });
+
+      const afterBlocks = __pdfiumWorkerTestHooks.analyzeEditableTextBlocks(mod, docId, 0);
+      const editedSecondLine = afterBlocks.find((b) =>
+        b.originalText.includes('Segunda linha expandida')
+      )!;
+      const lowerParagraph = afterBlocks.find((b) =>
+        b.originalText.includes('Paragrafo inferior intacto')
+      )!;
+      expect(editedSecondLine).toBeDefined();
+      expect(lowerParagraph).toBeDefined();
+      // O parágrafo inferior DEVE ter sido empurrado para baixo (top < editedBottom), sem sobreposição!
+      expect(lowerParagraph.rect.top).toBeLessThan(editedSecondLine.rect.bottom);
+    } finally {
+      __pdfiumWorkerTestHooks.closeDocHandle(mod, docId);
+    }
   });
 });

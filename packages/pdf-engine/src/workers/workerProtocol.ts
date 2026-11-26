@@ -77,6 +77,9 @@ export interface CommitTextBlockPayload {
     boxWidthPt?: number;
     boxBottomYPt?: number;
     boxTopYPt?: number;
+    origRect?: PdfRect;
+    wasManuallyMoved?: boolean;
+    autoCoverBackgroundRgba?: [number, number, number, number] | null;
     topBaselineYPt: number;
     lineHeightPt: number;
     fontSizePt: number;
@@ -130,4 +133,6 @@ export type PageCharsResult = {
 export type CommitMutationResult = {
   bytes: Uint8Array;
   geometries: PdfPageGeometry[];
+  verticalShiftBelowPt?: number;
+  shiftedBelowThresholdYPt?: number;
 };

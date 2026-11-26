@@ -330,6 +330,10 @@ export function PageStackView({
         activeTextBlockDraft: {
           ...latest,
           rect: nextRect,
+          hasManualWidthResize:
+            latest.hasManualWidthResize || mode.includes('e') || mode.includes('w'),
+          hasManualHeightResize:
+            latest.hasManualHeightResize || mode.includes('n') || mode.includes('s'),
         },
       });
     };
